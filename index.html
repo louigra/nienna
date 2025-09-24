@@ -1,111 +1,135 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Supabase + GitHub Pages</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:2rem}
-    table{border-collapse:collapse;margin-top:1rem;width:100%;max-width:900px}
-    th,td{border:1px solid #e5e7eb;padding:.5rem .7rem;text-align:left}
-    th{background:#f8fafc}
-    #status{opacity:.8}
-    .controls{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
-    input,select,button{padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:.5rem}
-  </style>
-  <!-- Tip: for repos that use underscores in folders, add a .nojekyll file at the root -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Supabase Auth + Table Demo</title>
+<style>
+  :root{--b:#0f172a;--fg:#e5e7eb;--mut:#94a3b8;--card:#111827;--br:#1f2937}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--b);color:var(--fg);margin:0}
+  .wrap{max-width:880px;margin:0 auto;padding:2rem}
+  h1{margin:.2rem 0 1rem}
+  .card{background:var(--card);border:1px solid var(--br);border-radius:12px;padding:1rem;margin-bottom:1rem}
+  input,button{padding:.6rem .7rem;border-radius:10px;border:1px solid var(--br);background:#0b1220;color:var(--fg)}
+  button{cursor:pointer}
+  table{border-collapse:collapse;width:100%;margin-top:.5rem}
+  th,td{border:1px solid var(--br);padding:.5rem .6rem;text-align:left}
+  th{color:var(--mut)}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap}
+  .mut{color:var(--mut)}
+  .hide{display:none}
+</style>
 </head>
 <body>
-  <h1>Projects</h1>
-  <p id="status">Loading…</p>
+<div class="wrap">
+  <h1>Supabase Auth + Table</h1>
+  <p class="mut" id="status">Initializing…</p>
 
-  <div class="controls">
-    <input id="search" placeholder="Search name…" />
-    <select id="category">
-      <option value="">All categories</option>
-      <option>Network</option>
-      <option>RF</option>
-      <option>Core</option>
-    </select>
-    <button id="reload">Reload</button>
+  <!-- Sign in -->
+  <div id="auth-area" class="card">
+    <h2>Sign in</h2>
+    <div class="row">
+      <input id="si-email" placeholder="Email">
+      <input id="si-pass" type="password" placeholder="Password">
+      <button id="si-btn">Sign in</button>
+    </div>
+    <p class="mut" id="si-msg"></p>
   </div>
 
-  <div id="out"></div>
+  <!-- App area -->
+  <div id="app-area" class="card hide">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="mut" id="user-info"></div>
+      <button id="signout-btn">Sign out</button>
+    </div>
+    <div id="table-wrap"></div>
+    <p class="mut" id="app-msg"></p>
+  </div>
+</div>
 
-  <script type="module">
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    // === Replace with your project values ===
-    const SUPABASE_URL = "https://nnktuardzsmmckjzrgij.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ua3R1YXJkenNtbWNranpyZ2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2NzU4MTYsImV4cCI6MjA3NDI1MTgxNn0.a4yi_syViC9lYuRMx4YmaVOCvFdpPXLVtdAnXJQlpD0";
-    // =======================================
+  // === Replace with your project values ===
+  const SUPABASE_URL = "https://nnktuardzsmmckjzrgij.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ua3R1YXJkenNtbWNranpyZ2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2NzU4MTYsImV4cCI6MjA3NDI1MTgxNn0.a4yi_syViC9lYuRMx4YmaVOCvFdpPXLVtdAnXJQlpD0";
+  // =======================================
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const status = document.getElementById('status');
-    const out = document.getElementById('out');
-    const search = document.getElementById('search');
-    const category = document.getElementById('category');
-    const reloadBtn = document.getElementById('reload');
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' }
+  });
 
-    async function loadData() {
-      status.textContent = "Loading…";
-      out.innerHTML = "";
+  const $ = sel => document.querySelector(sel);
+  const status = $('#status');
+  const authArea = $('#auth-area');
+  const appArea  = $('#app-area');
+  const userInfo = $('#user-info');
+  const appMsg   = $('#app-msg');
 
-      let q = supabase
-        .from('projects_programming')
-        .select('id,project_title,year1value,year2value,year3value,year4value,year5value')
-        .order('id', { ascending: true });
+  // Sign in
+  $('#si-btn').onclick = async () => {
+    const email = $('#si-email').value.trim();
+    const password = $('#si-pass').value;
+    $('#si-msg').textContent = 'Signing in…';
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    $('#si-msg').textContent = error ? error.message : '';
+  };
 
-      if (search.value.trim()) {
-        // Case-insensitive LIKE; use ilike for PostgREST
-        q = q.ilike('name', `%${search.value.trim()}%`);
-      }
-      if (category.value) {
-        q = q.eq('category', category.value);
-      }
+  // Sign out
+  $('#signout-btn').onclick = async () => {
+    await supabase.auth.signOut();
+  };
 
-      const { data, error } = await q;
-      if (error) {
-        status.textContent = "Error: " + error.message;
-        console.error(error);
-        return;
-      }
+  // Load table
+  async function loadProjects() {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id,project_title,category')
+      .order('id');
+    if (error) { appMsg.textContent = error.message; return; }
+    appMsg.textContent = `Loaded ${data.length} row(s)`;
+    renderTable(data);
+  }
 
-      status.textContent = `Loaded ${data.length} row(s) ✓`;
-      renderTable(data);
+  function renderTable(rows) {
+    const wrap = $('#table-wrap');
+    wrap.innerHTML = '';
+    if (!rows.length) { wrap.textContent = 'No rows.'; return; }
+    const table = document.createElement('table');
+    const headers = ['id','project_title','category'];
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    headers.forEach(h => { const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); });
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    rows.forEach(r => {
+      const tr=document.createElement('tr');
+      headers.forEach(h => { const td=document.createElement('td'); td.textContent=r[h] ?? ''; tr.appendChild(td); });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  }
+
+  function setAuthedUI(session) {
+    const user = session?.user ?? null;
+    if (user) {
+      authArea.classList.add('hide');
+      appArea.classList.remove('hide');
+      userInfo.textContent = `${user.email} | user_id: ${user.id}`;
+      loadProjects();
+      status.textContent = 'Signed in ✓';
+    } else {
+      authArea.classList.remove('hide');
+      appArea.classList.add('hide');
+      status.textContent = 'Please sign in.';
     }
+  }
 
-    function renderTable(rows) {
-      if (!rows.length) { out.textContent = "No rows."; return; }
-      const table = document.createElement('table');
-      const headers = ['id','name','cost','category','created_at'];
-
-      const thead = document.createElement('thead');
-      const hr = document.createElement('tr');
-      for (const h of headers) {
-        const th = document.createElement('th'); th.textContent = h; hr.appendChild(th);
-      }
-      thead.appendChild(hr); table.appendChild(thead);
-
-      const tbody = document.createElement('tbody');
-      for (const r of rows) {
-        const tr = document.createElement('tr');
-        for (const h of headers) {
-          const td = document.createElement('td');
-          td.textContent = r[h] ?? '';
-          tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      }
-      table.appendChild(tbody);
-      out.appendChild(table);
-    }
-
-    reloadBtn.addEventListener('click', loadData);
-    search.addEventListener('input', () => { /* simple debounce */ clearTimeout(window._t); window._t=setTimeout(loadData, 250); });
-    category.addEventListener('change', loadData);
-
-    loadData();
-  </script>
+  // Init + listen
+  const { data: { session } } = await supabase.auth.getSession();
+  setAuthedUI(session);
+  supabase.auth.onAuthStateChange((_event, newSession) => setAuthedUI(newSession));
+</script>
 </body>
 </html>
