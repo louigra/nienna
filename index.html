@@ -25,16 +25,35 @@
   <h1>Supabase Auth + Table</h1>
   <p class="mut" id="status">Initializing…</p>
 
-  <!-- Sign in -->
-  <div id="auth-area" class="card">
-    <h2>Sign in</h2>
-    <div class="row">
-      <input id="si-email" placeholder="Email">
-      <input id="si-pass" type="password" placeholder="Password">
-      <button id="si-btn">Sign in</button>
+  <!-- Auth Cards -->
+  <div class="grid" id="auth-area">
+    <div class="card">
+      <h2>Sign up</h2>
+      <div class="row">
+        <input id="su-email" placeholder="Email">
+        <input id="su-pass" type="password" placeholder="Password">
+        <button id="su-btn">Create account</button>
+      </div>
+      <p class="mut" id="su-msg"></p>
     </div>
-    <p class="mut" id="si-msg"></p>
+
+    <div class="card">
+      <h2>Sign in</h2>
+      <div class="row">
+        <input id="si-email" placeholder="Email">
+        <input id="si-pass" type="password" placeholder="Password">
+        <button id="si-btn">Sign in</button>
+      </div>
+      <div class="row" style="margin-top:.5rem">
+        <input id="ml-email" placeholder="Email for magic link">
+        <button id="ml-btn">Send magic link</button>
+      </div>
+      <p class="mut" id="si-msg"></p>
+    </div>
   </div>
+
+  
+
 
   <!-- App area -->
   <div id="app-area" class="card hide">
@@ -80,15 +99,56 @@
     await supabase.auth.signOut();
   };
 
-  // Load table
+  // Sign Up
+  $('#su-btn').onclick = async () => {
+    const email = $('#su-email').value.trim();
+    const password = $('#su-pass').value;
+    $('#su-msg').textContent = 'Signing up…';
+    const { data, error } = await supabase.auth.signUp({ email, password,
+      options: { emailRedirectTo: window.location.href } // return to this page
+    });
+    $('#su-msg').textContent = error ? error.message :
+      (data.user?.identities?.length ? 'Check your email to confirm.' : 'Sign-up initiated.');
+  };
+
+  // Magic Link
+  $('#ml-btn').onclick = async () => {
+    const email = $('#ml-email').value.trim();
+    $('#si-msg').textContent = 'Sending magic link…';
+    const { error } = await supabase.auth.signInWithOtp({
+      email, options: { emailRedirectTo: window.location.href }
+    });
+    $('#si-msg').textContent = error ? error.message : 'Magic link sent. Check your inbox.';
+  };
+
+  // Load project table
   async function loadProjects() {
     const { data, error } = await supabase
       .from('projects')
-      .select('id,project_title,category')
+      .select('id,project_title, year1value, year2value, year3value, year4value, year5value, category')
       .order('id');
     if (error) { appMsg.textContent = error.message; return; }
     appMsg.textContent = `Loaded ${data.length} row(s)`;
     renderTable(data);
+  }
+
+  // Load helper tables
+  async function loadInflators() {
+    const { data, error } = await supabase
+      .from('inflators')
+      .select('id, year, inflation_index')
+      .order('id');
+    if (error) { appMsg.TextContent = error.message; return; }
+    appMsg.textContent = `Loaded ${data.length} row(s)`;
+  }
+
+  async function loadCIPInfo() {
+    const { data, error } = await supabase
+      .from('cip_info')
+      .select('id, start_year, end_year')
+      .order('id');
+    if (error) {appMsg.TextContent = error.message; return; }
+    appMsg.textContent = `Loaded ${data.length} row(s)`;
   }
 
   function renderTable(rows) {
@@ -96,7 +156,7 @@
     wrap.innerHTML = '';
     if (!rows.length) { wrap.textContent = 'No rows.'; return; }
     const table = document.createElement('table');
-    const headers = ['id','project_title','category'];
+    const headers = ['id','project_title', 'year1value', 'year2value', 'year3value', 'year4value', 'year5value', 'category'];
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
     headers.forEach(h => { const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); });
