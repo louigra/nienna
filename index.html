@@ -1,25 +1,85 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My New Repo</title>
-  <style>
-    html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0f172a;color:#e2e8f0}
-    .wrap{min-height:100dvh;display:grid;place-items:center;text-align:center;padding:3rem}
-    h1{font-size:clamp(2rem,6vw,3rem);margin:0 0 .5rem}
-    p{opacity:.85;margin:.5rem 0 1.5rem}
-    a.button{display:inline-block;padding:.75rem 1rem;border:1px solid #475569;border-radius:.75rem;text-decoration:none;color:inherit}
-    a.button:hover{background:#111827}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SQLite on GitHub Pages</title>
+<style>
+  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:2rem}
+  table{border-collapse:collapse;margin-top:1rem}
+  td,th{border:1px solid #ccc;padding:.5rem .75rem}
+  #status{opacity:.8}
+</style>
 </head>
 <body>
-  <main class="wrap">
-    <div>
-      <h1>🚀 Hello, world!</h1>
-      <p>This is my super-minimal landing page hosted on GitHub Pages.</p>
-      <a class="button" href="https://github.com/USERNAME/my-new-repo">View the repo</a>
-    </div>
-  </main>
+  <h1>SQLite (WASM) demo</h1>
+  <p id="status">Loading…</p>
+  <div id="out"></div>
+
+  <!-- sql.js (WASM) CDN -->
+  <script type="module">
+    // Use a pinned version in real projects; example uses latest tag.
+    import initSqlJs from "https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js";
+
+    const config = {
+      // sql-wasm.wasm is fetched from the same CDN path:
+      locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/${file}`
+    };
+
+    const status = document.getElementById('status');
+    const out = document.getElementById('out');
+
+    try {
+      const SQL = await initSqlJs(config);
+
+      // Fetch the DB file from your repo (ensure the path matches!)
+      const resp = await fetch("./data/mydata.db"); // <-- your db path
+      if (!resp.ok) throw new Error("Failed to load DB file");
+      const buf = await resp.arrayBuffer();
+
+      // Open DB in memory
+      const db = new SQL.Database(new Uint8Array(buf));
+
+      // Run a query
+      const stmt = db.prepare("SELECT id, name, cost FROM projects ORDER BY id");
+      const rows = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+
+      // Render results
+      if (rows.length === 0) {
+        out.textContent = "No rows.";
+      } else {
+        const table = document.createElement("table");
+        const thead = document.createElement("thead");
+        const headerRow = document.createElement("tr");
+        Object.keys(rows[0]).forEach(k => {
+          const th = document.createElement("th");
+          th.textContent = k;
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        rows.forEach(r => {
+          const tr = document.createElement("tr");
+          Object.values(r).forEach(v => {
+            const td = document.createElement("td");
+            td.textContent = v;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        out.appendChild(table);
+      }
+
+      status.textContent = "Loaded ✓ (read-only demo)";
+    } catch (e) {
+      status.textContent = "Error loading DB: " + e.message;
+      console.error(e);
+    }
+  </script>
 </body>
 </html>
