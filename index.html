@@ -52,8 +52,8 @@
       out.innerHTML = "";
 
       let q = supabase
-        .from('projects')
-        .select('id,name,cost,category,created_at')
+        .from('projects_programming')
+        .select('id,project_title,year1value,year2value,year3value,year4value,year5value')
         .order('id', { ascending: true });
 
       if (search.value.trim()) {
