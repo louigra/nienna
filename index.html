@@ -1,85 +1,111 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SQLite on GitHub Pages</title>
-<style>
-  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:2rem}
-  table{border-collapse:collapse;margin-top:1rem}
-  td,th{border:1px solid #ccc;padding:.5rem .75rem}
-  #status{opacity:.8}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Supabase + GitHub Pages</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:2rem}
+    table{border-collapse:collapse;margin-top:1rem;width:100%;max-width:900px}
+    th,td{border:1px solid #e5e7eb;padding:.5rem .7rem;text-align:left}
+    th{background:#f8fafc}
+    #status{opacity:.8}
+    .controls{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}
+    input,select,button{padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:.5rem}
+  </style>
+  <!-- Tip: for repos that use underscores in folders, add a .nojekyll file at the root -->
 </head>
 <body>
-  <h1>SQLite (WASM) demo</h1>
+  <h1>Projects</h1>
   <p id="status">Loading…</p>
+
+  <div class="controls">
+    <input id="search" placeholder="Search name…" />
+    <select id="category">
+      <option value="">All categories</option>
+      <option>Network</option>
+      <option>RF</option>
+      <option>Core</option>
+    </select>
+    <button id="reload">Reload</button>
+  </div>
+
   <div id="out"></div>
 
-  <!-- sql.js (WASM) CDN -->
   <script type="module">
-    // Use a pinned version in real projects; example uses latest tag.
-    import initSqlJs from "https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js";
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    const config = {
-      // sql-wasm.wasm is fetched from the same CDN path:
-      locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/${file}`
-    };
+    // === Replace with your project values ===
+    const SUPABASE_URL = "https://nnktuardzsmmckjzrgij.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ua3R1YXJkenNtbWNranpyZ2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2NzU4MTYsImV4cCI6MjA3NDI1MTgxNn0.a4yi_syViC9lYuRMx4YmaVOCvFdpPXLVtdAnXJQlpD0";
+    // =======================================
 
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const status = document.getElementById('status');
     const out = document.getElementById('out');
+    const search = document.getElementById('search');
+    const category = document.getElementById('category');
+    const reloadBtn = document.getElementById('reload');
 
-    try {
-      const SQL = await initSqlJs(config);
+    async function loadData() {
+      status.textContent = "Loading…";
+      out.innerHTML = "";
 
-      // Fetch the DB file from your repo (ensure the path matches!)
-      const resp = await fetch("./data/mydata.db"); // <-- your db path
-      if (!resp.ok) throw new Error("Failed to load DB file");
-      const buf = await resp.arrayBuffer();
+      let q = supabase
+        .from('projects')
+        .select('id,name,cost,category,created_at')
+        .order('id', { ascending: true });
 
-      // Open DB in memory
-      const db = new SQL.Database(new Uint8Array(buf));
-
-      // Run a query
-      const stmt = db.prepare("SELECT id, name, cost FROM projects ORDER BY id");
-      const rows = [];
-      while (stmt.step()) rows.push(stmt.getAsObject());
-      stmt.free();
-
-      // Render results
-      if (rows.length === 0) {
-        out.textContent = "No rows.";
-      } else {
-        const table = document.createElement("table");
-        const thead = document.createElement("thead");
-        const headerRow = document.createElement("tr");
-        Object.keys(rows[0]).forEach(k => {
-          const th = document.createElement("th");
-          th.textContent = k;
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        const tbody = document.createElement("tbody");
-        rows.forEach(r => {
-          const tr = document.createElement("tr");
-          Object.values(r).forEach(v => {
-            const td = document.createElement("td");
-            td.textContent = v;
-            tr.appendChild(td);
-          });
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        out.appendChild(table);
+      if (search.value.trim()) {
+        // Case-insensitive LIKE; use ilike for PostgREST
+        q = q.ilike('name', `%${search.value.trim()}%`);
+      }
+      if (category.value) {
+        q = q.eq('category', category.value);
       }
 
-      status.textContent = "Loaded ✓ (read-only demo)";
-    } catch (e) {
-      status.textContent = "Error loading DB: " + e.message;
-      console.error(e);
+      const { data, error } = await q;
+      if (error) {
+        status.textContent = "Error: " + error.message;
+        console.error(error);
+        return;
+      }
+
+      status.textContent = `Loaded ${data.length} row(s) ✓`;
+      renderTable(data);
     }
+
+    function renderTable(rows) {
+      if (!rows.length) { out.textContent = "No rows."; return; }
+      const table = document.createElement('table');
+      const headers = ['id','name','cost','category','created_at'];
+
+      const thead = document.createElement('thead');
+      const hr = document.createElement('tr');
+      for (const h of headers) {
+        const th = document.createElement('th'); th.textContent = h; hr.appendChild(th);
+      }
+      thead.appendChild(hr); table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        for (const h of headers) {
+          const td = document.createElement('td');
+          td.textContent = r[h] ?? '';
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      out.appendChild(table);
+    }
+
+    reloadBtn.addEventListener('click', loadData);
+    search.addEventListener('input', () => { /* simple debounce */ clearTimeout(window._t); window._t=setTimeout(loadData, 250); });
+    category.addEventListener('change', loadData);
+
+    loadData();
   </script>
 </body>
 </html>
