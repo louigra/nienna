@@ -1,0 +1,19 @@
+/* Minimal custom overrides, keep Bootstrap doing most of the work. */
+
+/* Optional: tweak body background/text beyond Bootstrap dark defaults */
+body {
+    /* These are optional if you like the default Bootstrap dark palette */
+    background: #0f172a; /* slate-900 style */
+    color: #e5e7eb;
+  }
+  
+  /* Make the table wrap nicer on small screens (Bootstrap's .table-responsive helps too) */
+  #table-wrap {
+    overflow-x: auto;
+  }
+  
+  /* Compact spacing for inputs/buttons inside cards on narrow screens */
+  .card .form-control,
+  .card .btn {
+    min-height: 42px;
+  }
