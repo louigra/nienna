@@ -16,6 +16,39 @@
       </div>
     </div>
 
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="h4 mb-0">Tier</h2>
+        <form>
+            <label for="tier-select">Tier</label>
+            <select id="tier-select" name="selected-tier">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+        </form>
+      </div>
+
+      <div>
+        <h2 class="h4 mb-0">Filter</h2>
+        <form>
+          <label for="category-select">Category</label>
+          <select id="category-select" name="selected-category">
+            <option value="8">08</option>
+          </select>
+          <label for="element-select">Element</label>
+          <select id="element-select" name="selected-element">
+            <option value="8">06</option>
+          </select>
+          <label for="cip-select">CIP</label>
+          <select id="cip-select" name="selected-cip">
+            <option value="8">9</option>
+          </select>
+          <input type="submit" value="Search">
+        </form>
+      </div>
+    </div>
+
     <div id="table-wrap" class="table-responsive"></div>
     <p class="text-secondary small" id="app-msg"></p>
   </div>
@@ -114,7 +147,7 @@
     async function loadProjects() {
       appMsg.textContent = 'Loading…';
       const { data, error } = await supabase
-        .from('projects')
+        .from('programming_projects')
         .select('id,project_title,year1value,year2value,year3value,year4value,year5value,cip,category,element')
         .order('id');
       if (error) { appMsg.textContent = error.message; return; }
@@ -228,9 +261,9 @@
       }
 
       if (id) {
-        ({ error } = await supabase.from('projects').update(payload).eq('id', id));
+        ({ error } = await supabase.from('programming_projects').update(payload).eq('id', id));
       } else {
-        ({ error } = await supabase.from('projects').insert([payload]));
+        ({ error } = await supabase.from('programming_projects').insert([payload]));
       }
 
       if (error) {
@@ -248,7 +281,7 @@
       if (!id) return;
       if (!confirm('Delete this project?')) return;
 
-      const { error } = await supabase.from('projects').delete().eq('id', id);
+      const { error } = await supabase.from('programming_projects').delete().eq('id', id);
       if (error) { appMsg.textContent = error.message; return; }
 
       modal.hide();
