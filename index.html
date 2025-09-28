@@ -79,10 +79,10 @@
       new bootstrap.Modal('#appModal').show();
     }
 
-    // if already signed in, go straight to dashboard
+    // if already signed in, go straight to landingpage
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) window.location.href = "dashboard.html";
+      if (session) window.location.href = "landingpage.html";
     })();
 
     // sign in
@@ -92,7 +92,7 @@
       $('#si-msg').textContent = 'Signing in…';
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) { $('#si-msg').textContent = ''; showModal('Sign-in Error', error.message); return; }
-      window.location.href = "dashboard.html";
+      window.location.href = "landingpage.html";
     };
 
     // sign up (restrict to @mtacd.org)
@@ -109,7 +109,7 @@
         $('#su-msg').textContent = 'Signing up…';
         const { data, error } = await supabase.auth.signUp({
           email, password: passInput.value,
-          options: { emailRedirectTo: window.location.origin + window.location.pathname.replace('index.html','dashboard.html') }
+          options: { emailRedirectTo: window.location.origin + window.location.pathname.replace('index.html','landingpage.html') }
         });
         if (error) return showModal('Sign-up Error', error.message || 'Unable to create account.');
         showModal('Check your email', 'We sent a confirmation link to finish creating your account.');
@@ -122,7 +122,7 @@
       const email = $('#ml-email').value.trim();
       $('#si-msg').textContent = 'Sending magic link…';
       const { error } = await supabase.auth.signInWithOtp({
-        email, options: { emailRedirectTo: window.location.origin + '/dashboard.html' }
+        email, options: { emailRedirectTo: window.location.origin + '/landingpage.html' }
       });
       if (error) return showModal('Magic Link Error', error.message);
       $('#si-msg').textContent = 'Magic link sent. Check your inbox.';

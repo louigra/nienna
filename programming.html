@@ -12,7 +12,7 @@
       <h1 class="h4 mb-0">Programming</h1>
       <div class="d-flex gap-2">
         <button id="add-btn" class="btn btn-primary">Add Project</button>
-        <a class="btn btn-outline-light" href="dashboard.html">Back to Dashboard</a>
+        <a class="btn btn-outline-light" href="landingpage.html">Back to Dashboard</a>
       </div>
     </div>
 
@@ -35,16 +35,19 @@
           <label for="category-select">Category</label>
           <select id="category-select" name="selected-category">
             <option value="8">08</option>
+            <option value="9">09</option>
           </select>
           <label for="element-select">Element</label>
           <select id="element-select" name="selected-element">
-            <option value="8">06</option>
+            <option value="2">02</option>
+            <option value="3">03</option>
+            <option value="4">04</option>
+            <option value="6">06</option>
           </select>
           <label for="cip-select">CIP</label>
           <select id="cip-select" name="selected-cip">
-            <option value="8">9</option>
+            <option value="9">9</option>
           </select>
-          <input type="submit" value="Search">
         </form>
       </div>
     </div>
@@ -143,56 +146,146 @@
 
     let currentRows = [];
 
-    // Load table
+
+
     async function loadProjects() {
-      appMsg.textContent = 'Loading…';
-      const { data, error } = await supabase
-        .from('programming_projects')
-        .select('id,project_title,year1value,year2value,year3value,year4value,year5value,cip,category,element')
-        .order('id');
-      if (error) { appMsg.textContent = error.message; return; }
-      currentRows = data || [];
-      appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
-      renderTable(currentRows);
+        appMsg.textContent = 'Loading…';
+      
+        const filters = getFilters();
+      
+        let query = supabase
+          .from('programming_projects')
+          .select(`
+            id,
+            project_title,
+            year1value, year2value, year3value, year4value, year5value,
+            cip, category, element,
+            tier1multiplier, tier2multiplier, tier3multiplier
+          `)
+          .order('id', { ascending: true });
+      
+        // Apply filters: cip/category = numbers, element = text
+        if (filters.category) query = query.eq('category', Number(filters.category));
+        if (filters.cip)      query = query.eq('cip', Number(filters.cip));
+        if (filters.element)  query = query.eq('element', Number(filters.element));
+      
+        const { data, error } = await query;
+      
+        if (error) { 
+          appMsg.textContent = error.message; 
+          return; 
+        }
+      
+        currentRows = data || [];
+        appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
+        renderTable(currentRows, getSelectedTier());
+      }
+
+    const tierSelect = document.getElementById('tier-select');
+    const categorySelect = document.getElementById('category-select');
+    const elementSelect = document.getElementById('element-select');
+    const cipSelect = document.getElementById('cip-select');
+
+    tierSelect.addEventListener('change', () => {
+        renderTable(currentRows, getSelectedTier());
+    });
+
+    categorySelect.addEventListener('change', async () => {
+        await loadProjects();
+    });
+    elementSelect.addEventListener('change', async () => {
+        await loadProjects();
+    });
+    cipSelect.addEventListener('change', async () => {
+        await loadProjects();
+    });
+
+    function getSelectedTier() {
+        return Number(tierSelect?.value || 1);
     }
 
-    // Render table with click-to-edit
-    function renderTable(rows) {
-      wrap.innerHTML = '';
-      if (!rows.length) {
+    function getFilters() {
+        const filters = {};
+        const cat = categorySelect?.value;
+        const elem = elementSelect?.value;
+        const cip = cipSelect?.value;
+        if (cat) filters.category = cat;
+        if (elem) filters.element = elem;
+        if (cip) filters.cip = cip;
+        return filters;
+    }
+
+    function getMultiplier(row, tier) {
+        if (tier === 1) return Number(row.tier1multiplier ?? 1);
+        if (tier === 2) return Number(row.tier2multiplier ?? 1);
+        if (tier === 3) return Number(row.tier3multiplier ?? 1);
+        return 1;
+    }
+
+    function scaled(value, mult) {
+        const base = Number(value);
+        if (!isFinite(base)) return '';  // keep empty if not a number
+        const out = base * mult;
+        // format as needed: integer if whole, otherwise with up to 2 decimals
+        return Number.isInteger(out) ? String(out) : out.toFixed(2);
+    }
+
+    // Render table
+    function renderTable(rows, tier = 1) {
+        wrap.innerHTML = '';
+        if (!rows.length) {
         wrap.innerHTML = '<div class="text-secondary">No rows.</div>';
         return;
-      }
-      const headers = ['id','project_title','year1value','year2value','year3value','year4value','year5value','cip', 'category', 'element'];
-      const table = document.createElement('table');
-      table.className = 'table table-sm table-striped table-hover align-middle';
-      const thead = document.createElement('thead');
-      const trh = document.createElement('tr');
-      headers.forEach(h => { const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); });
-      thead.appendChild(trh); table.appendChild(thead);
-      const tbody = document.createElement('tbody');
-
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.dataset.id = r.id; // for editing
+        }
+    
+        // headers to display
+        const headers = ['id','project_title','year1value','year2value','year3value','year4value','year5value'];
+    
+        const table = document.createElement('table');
+        table.className = 'table table-sm table-striped table-hover align-middle';
+    
+        const thead = document.createElement('thead');
+        const trh = document.createElement('tr');
         headers.forEach(h => {
-          const td = document.createElement('td');
-          td.textContent = r[h] ?? '';
-          tr.appendChild(td);
+        const th = document.createElement('th');
+        th.textContent = h;
+        trh.appendChild(th);
         });
+        thead.appendChild(trh);
+        table.appendChild(thead);
+    
+        const tbody = document.createElement('tbody');
+    
+        rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = r.id;
+    
+        const mult = getMultiplier(r, tier);
+    
+        headers.forEach(h => {
+            const td = document.createElement('td');
+            if (h.startsWith('year') && h.endsWith('value')) {
+            td.textContent = scaled(r[h], mult);
+            } else {
+            td.textContent = r[h] ?? '';
+            }
+            tr.appendChild(td);
+        });
+    
         tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      wrap.appendChild(table);
-
-      // Event delegation: click any row to edit
-      tbody.onclick = (e) => {
+        });
+    
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+    
+        // Event delegation: click any row to edit (passes the RAW row, not scaled)
+        tbody.onclick = (e) => {
         const tr = e.target.closest('tr');
         if (!tr) return;
         const id = Number(tr.dataset.id);
         const row = currentRows.find(x => x.id === id);
         if (row) openEditModal(row);
-      };
+        };
     }
 
     // Open modal for adding new
@@ -272,7 +365,7 @@
       }
 
       modal.hide();
-      await loadProjects();
+      await loadProjects(getFilters());
     };
 
     // Delete
@@ -285,7 +378,7 @@
       if (error) { appMsg.textContent = error.message; return; }
 
       modal.hide();
-      await loadProjects();
+      await loadProjects(getFilters);
     };
 
     function valOrNull(v) {
@@ -295,7 +388,7 @@
     }
 
     // Initial load
-    loadProjects();
+    loadProjects(getFilters());
   </script>
 </body>
 </html>
