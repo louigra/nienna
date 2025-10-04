@@ -72,38 +72,57 @@
                 <label class="form-label" for="proj-title">Project Title</label>
                 <input id="proj-title" class="form-control" placeholder="e.g., Fiber Optic Cable" required />
               </div>
-              <div class="col-12 col-md-6">
+            </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
                 <label class="form-label" for="proj-category">Category</label>
                 <input id="proj-category" class="form-control" placeholder="e.g., 8" />
               </div>
-              <div class="col-12 col-md-6">
+              <div class="col-6 col-md-2">
                 <label class="form-label" for="proj-element">Element</label>
                 <input id="proj-element" class="form-control" placeholder="e.g., 01" />
               </div>
-              <div class="col-12 col-md-6">
+              <div class="col-6 col-md-2">
                 <label class="form-label" for="proj-cip">CIP</label>
                 <input id="proj-cip" class="form-control" placeholder="e.g., 9" />
               </div>
+            </div>
+            <div class="row g-3">
               <div class="col-6 col-md-2">
                 <label class="form-label" for="y1">Year 1</label>
-                <input id="y1" type="number" step="0.01" class="form-control" />
+                <input id="y1" type="number" step="1" class="form-control" />
               </div>
               <div class="col-6 col-md-2">
                 <label class="form-label" for="y2">Year 2</label>
-                <input id="y2" type="number" step="0.01" class="form-control" />
+                <input id="y2" type="number" step="1" class="form-control" />
               </div>
               <div class="col-6 col-md-2">
                 <label class="form-label" for="y3">Year 3</label>
-                <input id="y3" type="number" step="0.01" class="form-control" />
+                <input id="y3" type="number" step="1" class="form-control" />
               </div>
               <div class="col-6 col-md-2">
                 <label class="form-label" for="y4">Year 4</label>
-                <input id="y4" type="number" step="0.01" class="form-control" />
+                <input id="y4" type="number" step="1" class="form-control" />
               </div>
               <div class="col-6 col-md-2">
                 <label class="form-label" for="y5">Year 5</label>
-                <input id="y5" type="number" step="0.01" class="form-control" />
+                <input id="y5" type="number" step="1" class="form-control" />
               </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="t1multiplier">Tier 1 Multiplier</label>
+                <input id="t1multiplier" type="number" step="0.01" class="form-control"/>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="t2multiplier">Tier 2 Multiplier</label>
+                <input id="t2multiplier" type="number" step="0.01" class="form-control"/>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="t3multiplier">Tier 3 Multiplier</label>
+                <input id="t3multiplier" type="number" step="0.01" class="form-control"/>
+              </div>
+
             </div>
           </div>
           <div class="modal-footer">
@@ -141,11 +160,14 @@
     const y3El      = document.getElementById('y3');
     const y4El      = document.getElementById('y4');
     const y5El      = document.getElementById('y5');
+    const t1multEl  = document.getElementById('t1multiplier');
+    const t2multEl  = document.getElementById('t2multiplier');
+    const t3multEl  = document.getElementById('t3multiplier');
     const deleteBtn = document.getElementById('delete-btn');
     const modalTitle= document.getElementById('projectModalTitle');
 
     let currentRows = [];
-
+    let inflators = [];
 
 
     async function loadProjects() {
@@ -178,7 +200,9 @@
       
         currentRows = data || [];
         appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
-        renderTable(currentRows, getSelectedTier());
+        renderTable(currentRows, getSelectedTier(), getInflators());
+
+
       }
 
     const tierSelect = document.getElementById('tier-select');
@@ -202,6 +226,23 @@
 
     function getSelectedTier() {
         return Number(tierSelect?.value || 1);
+    }
+
+    async function getInflators() {
+        let inflatorsQuery = supabase
+            .from('inflators')
+            .select('*')
+            .order('year', { ascending: true });
+    
+        const { data: inflatorData, error: inflatorError } = await inflatorsQuery;
+    
+        if (inflatorError) {
+            appMsg.textContent = inflatorError.message;
+            return;
+        }
+    
+        inflators = inflatorData || [];
+        return inflators;
     }
 
     function getFilters() {
@@ -231,7 +272,7 @@
     }
 
     // Render table
-    function renderTable(rows, tier = 1) {
+    function renderTable(rows, tier = 1, inflators = []) {
         wrap.innerHTML = '';
         if (!rows.length) {
         wrap.innerHTML = '<div class="text-secondary">No rows.</div>';
@@ -298,6 +339,7 @@
       elemEl.value  = '';
       cipEl.value   = '';
       y1El.value = y2El.value = y3El.value = y4El.value = y5El.value = '';
+      t1multEl.value = t2multEl.value = t3multEl.value = '';
     }
 
     function fillForm(row) {
@@ -311,6 +353,9 @@
       y3El.value    = row.year3value ?? '';
       y4El.value    = row.year4value ?? '';
       y5El.value    = row.year5value ?? '';
+      t1multEl.value= row.tier1multiplier ?? '';
+      t2multEl.value= row.tier2multiplier ?? '';
+      t3multEl.value= row.tier3multiplier ?? '';
     }
 
     function openAddModal() {
@@ -342,6 +387,7 @@
         year5value:    valOrNull(y5El.value),
         cip:           valOrNull(cipEl.value), 
         element:       valOrNull(elemEl.value),
+
       };
 
       const id = idInput.value ? Number(idInput.value) : null;
