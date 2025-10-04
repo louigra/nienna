@@ -5,58 +5,129 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Nienna — Programming</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="./styles.css" rel="stylesheet" />
+  <style>
+    :root {
+      --brand: #0039A6;
+      --glass-bg: rgba(18, 20, 25, 0.6);
+      --glass-border: rgba(255,255,255,.08);
+    }
+    body { 
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(233, 87, 77, .18), transparent),
+        radial-gradient(900px 500px at 100% 110%, rgba(88, 101, 242, .14), transparent),
+        linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
+      min-height: 100vh;
+    }
+    .page-header {
+      background: linear-gradient(90deg, rgba(0, 57, 166, .2), rgba(233, 87, 77, 0));
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .toolbar-card, .filters-card, .table-wrap-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 1rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .btn-brand { background: var(--brand); border-color: var(--brand); }
+    .btn-brand:hover { filter: brightness(1.08); }
+    .select-inline { min-width: 120px; }
+    .section-title { letter-spacing: .02em; }
+    .table-wrap-card{ border-radius: 1rem; }
+    .muted { color: #98a2b3; }
+  </style>
 </head>
 <body>
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h4 mb-0">Programming</h1>
-      <div class="d-flex gap-2">
-        <button id="add-btn" class="btn btn-primary">Add Project</button>
-        <a class="btn btn-outline-light" href="landingpage.html">Back to Dashboard</a>
+
+  <div class="page-header">
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <i class="bi bi-window-stack fs-3 text-warning"></i>
+          <div>
+            <h1 class="h4 mb-0">Programming</h1>
+            <div class="muted small">Build a capital program</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button id="add-btn" class="btn btn-brand"><i class="bi bi-plus-circle me-1"></i> Add Project</button>
+          <a class="btn btn-outline-light" href="landingpage.html"><i class="bi bi-speedometer2 me-1"></i> Back to Dashboard</a>
+        </div>
       </div>
     </div>
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <h2 class="h4 mb-0">Tier</h2>
-        <form>
-            <label for="tier-select">Tier</label>
-            <select id="tier-select" name="selected-tier">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-            </select>
-        </form>
-      </div>
-
-      <div>
-        <h2 class="h4 mb-0">Filter</h2>
-        <form>
-          <label for="category-select">Category</label>
-          <select id="category-select" name="selected-category">
-            <option value="8">08</option>
-            <option value="9">09</option>
-          </select>
-          <label for="element-select">Element</label>
-          <select id="element-select" name="selected-element">
-            <option value="2">02</option>
-            <option value="3">03</option>
-            <option value="4">04</option>
-            <option value="6">06</option>
-          </select>
-          <label for="cip-select">CIP</label>
-          <select id="cip-select" name="selected-cip">
-            <option value="9">9</option>
-          </select>
-        </form>
-      </div>
-    </div>
-
-    <div id="table-wrap" class="table-responsive"></div>
-    <p class="text-secondary small" id="app-msg"></p>
   </div>
 
-  <!-- Add/Edit Project Modal -->
+  <div class="container py-4">
+    <!-- Controls Row -->
+    <div class="row g-3 align-items-stretch mb-3">
+      <!-- Tier card -->
+      <div class="col-12 col-lg-4">
+        <div class="toolbar-card h-100 p-3">
+          <h2 class="h6 mb-3 section-title">Tier</h2>
+          <form class="row g-2 align-items-center">
+            <div class="col-auto"><label for="tier-select" class="col-form-label">Tier</label></div>
+            <div class="col-auto">
+              <select id="tier-select" name="selected-tier" class="form-select select-inline">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Filters card -->
+      <div class="col-12 col-lg-8">
+        <div class="filters-card h-100 p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h6 mb-0 section-title">Filter</h2>
+            <div class="muted small">Use any combination</div>
+          </div>
+          <form class="row g-2">
+            <div class="col-12 col-sm-4">
+              <label for="cip-select" class="form-label">CIP</label>
+              <select id="cip-select" name="selected-cip" class="form-select">
+                <option value="9">9</option>
+              </select>
+            </div>
+            <div class="col-12 col-sm-4">
+              <label for="category-select" class="form-label">Category</label>
+              <select id="category-select" name="selected-category" class="form-select">
+                <option value="8">08</option>
+                <option value="9">09</option>
+              </select>
+            </div>
+            <div class="col-12 col-sm-4">
+              <label for="element-select" class="form-label">Element</label>
+              <select id="element-select" name="selected-element" class="form-select">
+                <option value="2">02</option>
+                <option value="3">03</option>
+                <option value="4">04</option>
+                <option value="6">06</option>
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table area -->
+    <div class="table-wrap-card h-100 p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h6 mb-0 section-title">Projects</h2>
+        <div class="muted small">Click any row to edit that project</div>
+      </div>
+      <div id="table-wrap" class="table-responsive"></div>
+    </div>
+
+    <p class="text-secondary small mt-2" id="app-msg"></p>
+  </div>
+
+  <!-- Add/Edit Project Modal (IDs preserved) -->
   <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content bg-dark text-light">
@@ -122,25 +193,36 @@
                 <label class="form-label" for="t3multiplier">Tier 3 Multiplier</label>
                 <input id="t3multiplier" type="number" step="0.01" class="form-control"/>
               </div>
-
             </div>
-          </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="estimateYear">Estimate Year</label>
+                <input id="estimateYear" type="number" step="1" class="form-control"/>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="awardYear">Award Year</label>
+                <input id="awardYear" type="number" step="1" class="form-control"/>
+              </div>
+            </div>
+          </div><!-- /modal-body -->
+
           <div class="modal-footer">
-            <button id="delete-btn" type="button" class="btn btn-outline-danger me-auto d-none">Delete</button>
+            <button id="delete-btn" type="button" class="btn btn-outline-danger me-auto d-none"><i class="bi bi-trash"></i> Delete</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button id="save-btn" type="submit" class="btn btn-primary">Save</button>
+            <button id="save-btn" type="submit" class="btn btn-brand"><i class="bi bi-save2 me-1"></i> Save</button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
+
   <!-- Bootstrap JS bundle (for Modal) -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 
   <script type="module">
     import { supabase, requireAuth } from "./auth-guard.js";
-    await requireAuth(); // redirect to login if not authed
+    import { getInflatorsOnce, getInflatorMap, inflate } from "./inflation.js";
 
     const wrap   = document.getElementById('table-wrap');
     const appMsg = document.getElementById('app-msg');
@@ -163,47 +245,75 @@
     const t1multEl  = document.getElementById('t1multiplier');
     const t2multEl  = document.getElementById('t2multiplier');
     const t3multEl  = document.getElementById('t3multiplier');
+    const estYearEl = document.getElementById('estimateYear');
+    const awardYearEl = document.getElementById('awardYear');
     const deleteBtn = document.getElementById('delete-btn');
     const modalTitle= document.getElementById('projectModalTitle');
 
     let currentRows = [];
-    let inflators = [];
 
+    function getSelectedTier() {
+      return Number(tierSelect?.value || 1);
+    }
 
+    function getFilters() {
+      const filters = {};
+      const cat = categorySelect?.value;
+      const elem = elementSelect?.value;
+      const cip = cipSelect?.value;
+      if (cat) filters.category = cat;
+      if (elem) filters.element = elem;
+      if (cip) filters.cip = cip;
+      return filters;
+    }
+
+    function getMultiplier(row, tier) {
+      if (tier === 1) return Number(row.tier1multiplier ?? 1);
+      if (tier === 2) return Number(row.tier2multiplier ?? 1);
+      if (tier === 3) return Number(row.tier3multiplier ?? 1);
+      return 1;
+    }
+
+    function scaled(value, mult) {
+      const base = Number(value);
+      if (!isFinite(base)) return '';  // keep empty if not a number
+      const out = base * mult;
+      return Number.isInteger(out) ? String(out) : out.toFixed(2);
+    }
+    
     async function loadProjects() {
-        appMsg.textContent = 'Loading…';
-      
-        const filters = getFilters();
-      
-        let query = supabase
-          .from('programming_projects')
-          .select(`
-            id,
-            project_title,
-            year1value, year2value, year3value, year4value, year5value,
-            cip, category, element,
-            tier1multiplier, tier2multiplier, tier3multiplier
-          `)
-          .order('id', { ascending: true });
-      
-        // Apply filters: cip/category = numbers, element = text
-        if (filters.category) query = query.eq('category', Number(filters.category));
-        if (filters.cip)      query = query.eq('cip', Number(filters.cip));
-        if (filters.element)  query = query.eq('element', Number(filters.element));
-      
-        const { data, error } = await query;
-      
-        if (error) { 
-          appMsg.textContent = error.message; 
-          return; 
-        }
-      
-        currentRows = data || [];
-        appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
-        renderTable(currentRows, getSelectedTier(), getInflators());
+      appMsg.textContent = 'Loading…';
 
+      const filters = getFilters();
 
+      let query = supabase
+        .from('programming_projects')
+        .select(`
+          id,
+          project_title,
+          year1value, year2value, year3value, year4value, year5value,
+          cip, category, element,
+          tier1multiplier, tier2multiplier, tier3multiplier,
+          estimate_year, award_year
+        `)
+        .order('id', { ascending: true });
+
+      // Apply filters: cip/category = numbers, element = text
+      if (filters.category) query = query.eq('category', Number(filters.category));
+      if (filters.cip)      query = query.eq('cip', Number(filters.cip));
+      if (filters.element)  query = query.eq('element', filters.element);
+
+      const { data, error } = await query;
+
+      if (error) { 
+        appMsg.textContent = error.message; 
+        return; 
       }
+
+      currentRows = data || [];
+      appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
+      renderTable(currentRows, getSelectedTier());
+    }
 
     const tierSelect = document.getElementById('tier-select');
     const categorySelect = document.getElementById('category-select');
@@ -211,122 +321,75 @@
     const cipSelect = document.getElementById('cip-select');
 
     tierSelect.addEventListener('change', () => {
-        renderTable(currentRows, getSelectedTier());
+      renderTable(currentRows, getSelectedTier());
     });
 
     categorySelect.addEventListener('change', async () => {
-        await loadProjects();
+      await loadProjects();
     });
     elementSelect.addEventListener('change', async () => {
-        await loadProjects();
+      await loadProjects();
     });
     cipSelect.addEventListener('change', async () => {
-        await loadProjects();
+      await loadProjects();
     });
 
-    function getSelectedTier() {
-        return Number(tierSelect?.value || 1);
-    }
-
-    async function getInflators() {
-        let inflatorsQuery = supabase
-            .from('inflators')
-            .select('*')
-            .order('year', { ascending: true });
-    
-        const { data: inflatorData, error: inflatorError } = await inflatorsQuery;
-    
-        if (inflatorError) {
-            appMsg.textContent = inflatorError.message;
-            return;
-        }
-    
-        inflators = inflatorData || [];
-        return inflators;
-    }
-
-    function getFilters() {
-        const filters = {};
-        const cat = categorySelect?.value;
-        const elem = elementSelect?.value;
-        const cip = cipSelect?.value;
-        if (cat) filters.category = cat;
-        if (elem) filters.element = elem;
-        if (cip) filters.cip = cip;
-        return filters;
-    }
-
-    function getMultiplier(row, tier) {
-        if (tier === 1) return Number(row.tier1multiplier ?? 1);
-        if (tier === 2) return Number(row.tier2multiplier ?? 1);
-        if (tier === 3) return Number(row.tier3multiplier ?? 1);
-        return 1;
-    }
-
-    function scaled(value, mult) {
-        const base = Number(value);
-        if (!isFinite(base)) return '';  // keep empty if not a number
-        const out = base * mult;
-        // format as needed: integer if whole, otherwise with up to 2 decimals
-        return Number.isInteger(out) ? String(out) : out.toFixed(2);
-    }
-
     // Render table
-    function renderTable(rows, tier = 1, inflators = []) {
-        wrap.innerHTML = '';
-        if (!rows.length) {
-        wrap.innerHTML = '<div class="text-secondary">No rows.</div>';
+    function renderTable(rows, tier = 1) {
+      const wrapEl = wrap;
+      wrapEl.innerHTML = '';
+      if (!rows.length) {
+        wrapEl.innerHTML = '<div class="text-secondary">No rows.</div>';
         return;
-        }
-    
-        // headers to display
-        const headers = ['id','project_title','year1value','year2value','year3value','year4value','year5value'];
-    
-        const table = document.createElement('table');
-        table.className = 'table table-sm table-striped table-hover align-middle';
-    
-        const thead = document.createElement('thead');
-        const trh = document.createElement('tr');
-        headers.forEach(h => {
+      }
+
+      const headers = ['id','project_title','year1value','year2value','year3value','year4value','year5value'];
+
+      const table = document.createElement('table');
+      table.className = 'table table-sm table-striped table-hover align-middle';
+
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      headers.forEach(h => {
         const th = document.createElement('th');
         th.textContent = h;
         trh.appendChild(th);
-        });
-        thead.appendChild(trh);
-        table.appendChild(thead);
-    
-        const tbody = document.createElement('tbody');
-    
-        rows.forEach(r => {
+      });
+      thead.appendChild(trh);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+
+      rows.forEach(r => {
         const tr = document.createElement('tr');
         tr.dataset.id = r.id;
-    
+
         const mult = getMultiplier(r, tier);
-    
+
         headers.forEach(h => {
-            const td = document.createElement('td');
-            if (h.startsWith('year') && h.endsWith('value')) {
-            td.textContent = scaled(r[h], mult);
-            } else {
+          const td = document.createElement('td');
+          if (h.startsWith('year') && h.endsWith('value')) {
+            td.textContent = inflate(scaled(r[h], mult), r.estimate_year, r.award_year);
+          } else {
             td.textContent = r[h] ?? '';
-            }
-            tr.appendChild(td);
+          }
+          tr.appendChild(td);
         });
-    
+
         tbody.appendChild(tr);
-        });
-    
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-    
-        // Event delegation: click any row to edit (passes the RAW row, not scaled)
-        tbody.onclick = (e) => {
+      });
+
+      table.appendChild(tbody);
+      wrapEl.appendChild(table);
+
+      // Event delegation: click any row to edit (passes RAW row)
+      tbody.onclick = (e) => {
         const tr = e.target.closest('tr');
         if (!tr) return;
         const id = Number(tr.dataset.id);
         const row = currentRows.find(x => x.id === id);
         if (row) openEditModal(row);
-        };
+      };
     }
 
     // Open modal for adding new
@@ -340,6 +403,8 @@
       cipEl.value   = '';
       y1El.value = y2El.value = y3El.value = y4El.value = y5El.value = '';
       t1multEl.value = t2multEl.value = t3multEl.value = '';
+      estYearEl.value = '';
+      awardYearEl.value = '';
     }
 
     function fillForm(row) {
@@ -356,6 +421,8 @@
       t1multEl.value= row.tier1multiplier ?? '';
       t2multEl.value= row.tier2multiplier ?? '';
       t3multEl.value= row.tier3multiplier ?? '';
+      estYearEl.value = row.estimate_year ?? '';
+      awardYearEl.value = row.award_year ?? '';
     }
 
     function openAddModal() {
@@ -365,16 +432,13 @@
       modal.show();
     }
 
-    // if a row is passed in, then open for editing
     function openEditModal(row) {
       fillForm(row);
-      // set the title on the modal
       modalTitle.textContent = `Edit ${row.project_title || 'Project'}`;
       deleteBtn.classList.remove('d-none');
       modal.show();
     }
 
-    // Save (insert or update)
     form.onsubmit = async (e) => {
       e.preventDefault();
       const payload = {
@@ -386,15 +450,18 @@
         year4value:    valOrNull(y4El.value),
         year5value:    valOrNull(y5El.value),
         cip:           valOrNull(cipEl.value), 
-        element:       valOrNull(elemEl.value),
-
+        element:       (elemEl.value.trim() || null),
+        tier1multiplier: valOrNull(t1multEl.value),
+        tier2multiplier: valOrNull(t2multEl.value),
+        tier3multiplier: valOrNull(t3multEl.value),
+        estimate_year:   valOrNull(estYearEl.value),
+        award_year:      valOrNull(awardYearEl.value),
       };
 
       const id = idInput.value ? Number(idInput.value) : null;
       let error;
 
       if (!payload.project_title) {
-        // basic validation
         titleEl.focus();
         return;
       }
@@ -411,10 +478,9 @@
       }
 
       modal.hide();
-      await loadProjects(getFilters());
+      await loadProjects();
     };
 
-    // Delete
     deleteBtn.onclick = async () => {
       const id = idInput.value ? Number(idInput.value) : null;
       if (!id) return;
@@ -424,7 +490,7 @@
       if (error) { appMsg.textContent = error.message; return; }
 
       modal.hide();
-      await loadProjects(getFilters);
+      await loadProjects();
     };
 
     function valOrNull(v) {
@@ -433,8 +499,15 @@
       return Number.isNaN(n) ? null : n;
     }
 
-    // Initial load
-    loadProjects(getFilters());
+    // ---- Boot ----
+    try {
+      await requireAuth();
+      await getInflatorsOnce();
+      await loadProjects();
+    } catch (err) {
+      console.error('Initialization error:', err);
+      if (appMsg) appMsg.textContent = 'Error during initialization. See console.';
+    }
   </script>
 </body>
 </html>
