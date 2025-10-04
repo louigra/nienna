@@ -280,7 +280,7 @@
       const out = base * mult;
       return Number.isInteger(out) ? String(out) : out.toFixed(2);
     }
-    
+
     async function loadProjects() {
       appMsg.textContent = 'Loading…';
 
@@ -357,7 +357,7 @@
       });
       thead.appendChild(trh);
       table.appendChild(thead);
-
+      let elementTotal = 0;
       const tbody = document.createElement('tbody');
 
       rows.forEach(r => {
@@ -368,8 +368,14 @@
 
         headers.forEach(h => {
           const td = document.createElement('td');
+     
           if (h.startsWith('year') && h.endsWith('value')) {
-            td.textContent = inflate(scaled(r[h], mult), r.estimate_year, r.award_year);
+            const scaledStr   = scaled(r[h], mult); 
+            const inflatedStr = inflate(scaledStr, r.estimate_year, r.award_year); 
+            td.textContent = inflatedStr;
+    
+            const n = Number(inflatedStr);
+            if (Number.isFinite(n)) elementTotal += n; // only add valid numbers
           } else {
             td.textContent = r[h] ?? '';
           }
@@ -380,6 +386,27 @@
       });
 
       table.appendChild(tbody);
+
+        // Optional: show a footer row with the total
+        const tfoot = document.createElement('tfoot');
+        const trf = document.createElement('tr');
+        const thLabel = document.createElement('th');
+        thLabel.colSpan = 2; // label spans first two columns
+        thLabel.className = 'text-end';
+        thLabel.textContent = 'Total:';
+        trf.appendChild(thLabel);
+
+        const thTotal = document.createElement('th');
+        thTotal.colSpan = headers.length - 2;
+        thTotal.textContent = Number(elementTotal).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          });
+        trf.appendChild(thTotal);
+
+        tfoot.appendChild(trf);
+        table.appendChild(tfoot);
+
       wrapEl.appendChild(table);
 
       // Event delegation: click any row to edit (passes RAW row)
