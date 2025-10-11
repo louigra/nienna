@@ -1,12 +1,18 @@
-/* Minimal custom overrides, keep Bootstrap doing most of the work. */
 
-/* Optional: tweak body background/text beyond Bootstrap dark defaults */
-body {
-    /* These are optional if you like the default Bootstrap dark palette */
-    background: #0f172a; /* slate-900 style */
-    color: #e5e7eb;
+:root {
+    --brand: #0039A6;
+    --glass-bg: rgba(15, 15, 18, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.08);
   }
-  
+  body {
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
+                radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
+                linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+  }
   /* Make the table wrap nicer on small screens (Bootstrap's .table-responsive helps too) */
   #table-wrap {
     overflow-x: auto;
@@ -17,3 +23,39 @@ body {
   .card .btn {
     min-height: 42px;
   }
+
+  /* App pages should not be globally centered */
+body.app {
+    display: block;          /* undo grid centering */
+    place-items: normal;     /* no centering */
+    padding: 0;              /* let the header touch edges */
+    min-height: 100vh;
+  }
+  
+  /* Ensure the header truly spans full width even if a global .container max-width exists */
+  .page-header .container,
+  .page-header .container-fluid {
+    max-width: 100% !important;
+  }
+  
+  /* Grid should fill the viewport */
+  .layout {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    min-height: calc(100vh - 96px); /* roughly viewport minus header */
+  }
+  
+  /* Optional polish */
+  .toolbar {
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    background: rgba(15,15,18,.4);
+    backdrop-filter: blur(6px);
+  }
+  .table-wrap {
+    background: rgba(15,15,18,.35);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .sidebar { width: 300px; }

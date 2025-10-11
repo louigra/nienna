@@ -14,7 +14,6 @@
       --glass-border: rgba(255,255,255,.08);
     }
     body { 
-      background:
       background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
                   radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
                   linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
@@ -91,23 +90,16 @@
             <div class="col-12 col-sm-4">
               <label for="cip-select" class="form-label">CIP</label>
               <select id="cip-select" name="selected-cip" class="form-select">
-                <option value="9">9</option>
               </select>
             </div>
             <div class="col-12 col-sm-4">
               <label for="category-select" class="form-label">Category</label>
               <select id="category-select" name="selected-category" class="form-select">
-                <option value="8">08</option>
-                <option value="9">09</option>
               </select>
             </div>
             <div class="col-12 col-sm-4">
               <label for="element-select" class="form-label">Element</label>
               <select id="element-select" name="selected-element" class="form-select">
-                <option value="2">02</option>
-                <option value="3">03</option>
-                <option value="4">04</option>
-                <option value="6">06</option>
               </select>
             </div>
           </form>
@@ -526,10 +518,62 @@
       return Number.isNaN(n) ? null : n;
     }
 
+    // --- Distinct helper & filter builder (ACEPs) ---
+
+    async function getDistinct(table, column) {
+        const { data, error } = await supabase
+        .from(table)
+        .select(column, { distinct: true })
+        .not(column, 'is', null)
+        .order(column, { ascending: true });
+    
+        if (error) throw error;
+        return (data || []).map(r => r[column]).filter(v => v !== null && v !== undefined);
+    }
+    
+    function fillSelect(selectEl, values, { display = v => String(v), value = v => String(v) } = {}) {
+        selectEl.innerHTML = '<option value="">All</option>';
+        const uniq = [...new Set(values)];
+        for (const v of uniq) {
+        const opt = document.createElement('option');
+        opt.value = value(v);
+        opt.textContent = display(v);
+        selectEl.appendChild(opt);
+        }
+    }
+    async function buildFiltersFromACEPs() {
+        appMsg.textContent = 'Loading filters…';
+    
+        const [cips, cats, elems] = await Promise.all([
+        getDistinct('aceps', 'cip'),
+        getDistinct('aceps', 'category'),
+        getDistinct('aceps', 'element')
+        ]);
+    
+        fillSelect(cipSelect, cips, {
+        value: v => String(v),
+        display: v => String(v)
+        });
+    
+        fillSelect(categorySelect, cats, {
+        value: v => String(v),
+        display: v => String(v)
+        });
+    
+        fillSelect(elementSelect, elems, {
+        value: v => String(v),
+        display: v => String(v).padStart(2,'0')
+        });
+    
+        appMsg.textContent = ''; // clear status
+    }
+
+
     // ---- Boot ----
     try {
       await requireAuth();
       await getInflatorsOnce();
+      await buildFiltersFromACEPs();
       await loadProjects();
     } catch (err) {
       console.error('Initialization error:', err);
