@@ -1,83 +1,265 @@
-<!-- configurator.html -->
 <!doctype html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Nienna — Configurator</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link href="./styles.css" rel="stylesheet"/>
+  <title>Nienna — Sign in</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="./styles.css" rel="stylesheet" />
   <style>
-    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
-    .sidebar {
-      border-right: 1px solid rgba(255,255,255,.08);
-      background: rgba(15,15,18,.5); backdrop-filter: blur(8px);
+    /* --- Page aesthetics --- */
+    :root {
+      --brand: #0039A6;
+      --glass-bg: rgba(15, 15, 18, 0.6);
+      --glass-border: rgba(255, 255, 255, 0.08);
     }
-    .sidebar .active { background: rgba(255,255,255,.08); }
-    .toolbar { border-bottom: 1px solid rgba(255,255,255,.08); }
-    .table-wrap { overflow:auto; }
+    body {
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
+                  radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
+                  linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+    }
+    .auth-shell {
+      max-width: 980px;
+      width: 100%;
+    }
+    .glass-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 1.25rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    }
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .35rem .7rem;
+      border-radius: 999px;
+      font-size: .8rem;
+      background: rgba(0, 57, 166, .15);
+      border: 1px solid rgba(0, 57, 166, .35);
+      color: #ffd6d2;
+    }
+    .divider {
+      height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+    }
+    .input-group .form-control { border-right: 0; }
+    .input-group .btn-outline-secondary { border-left: 0; }
+    .form-control::placeholder { color: #8c96a0; }
+    .btn-brand { background: var(--brand); border-color: var(--brand); }
+    .btn-brand:hover { filter: brightness(1.05); }
+    .muted { color: #98a2b3; }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <!-- Left toolbar -->
-    <aside class="sidebar p-3">
-      <h2 class="h6 text-secondary mb-3">Tables</h2>
-      <nav id="table-list" class="list-group list-group-flush small"></nav>
-      <hr class="text-secondary my-3" />
-      <div id="sidebar-extra" class="small text-secondary"></div>
-    </aside>
+  <div class="auth-shell">
+    <header class="mb-4 text-center">
+      <span class="brand-badge mb-2"><i class="bi bi-stars"></i> Nienna</span>
+      <h1 class="display-6 fw-semibold mt-2">Welcome back</h1>
+      <p class="muted mb-0" id="status">Please sign in.</p>
+    </header>
 
-    <!-- Right pane -->
-    <main class="d-flex flex-column">
-      <div class="toolbar p-3 d-flex gap-2 align-items-center">
-        <h1 id="page-title" class="h5 mb-0 flex-grow-1">Configurator</h1>
-        <input id="search-input" class="form-control form-control-sm" placeholder="Search…" style="max-width:220px"/>
-        <button id="add-btn" class="btn btn-primary btn-sm">Add</button>
-      </div>
+    <div id="auth-area" class="glass-card p-3 p-md-4 p-lg-5">
+      <div class="row g-0">
+        <!-- Left: Marketing/Info -->
+        <div class="col-lg-5 d-none d-lg-flex flex-column justify-content-between pe-lg-4 border-end border-opacity-25">
+          <div>
+            <h2 class="h4">Manage your projects</h2>
+            <p class="muted mb-4">Sign in to manage capital planning and track projects through to completion.</p>
+            <div class="d-flex flex-column gap-3">
+              <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-shield-lock fs-4 text-success"></i>
+                <div>
+                  <strong>Secure</strong>
+                  <div class="muted small">Restricted to MTA C&D Users.</div>
+                </div>
+              </div>
+              <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-lightning-charge fs-4 text-warning"></i>
+                <div>
+                  <strong>Fast by design</strong>
+                  <div class="muted small">Optimized for quick flows and fewer clicks.</div>
+                </div>
+              </div>
+              <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-layout-text-window-reverse fs-4 text-info"></i>
+                <div>
+                  <strong>Modern UI</strong>
+                  <div class="muted small">Minimal, simplified, and user-friendly.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="small text-secondary mt-4 mb-0">By continuing you acknowledge you have been approved to view this app.</p>
+        </div>
 
-      <div id="filters" class="p-3 d-flex flex-wrap gap-2"></div>
-      <div class="p-3 table-wrap">
-        <div id="table-region" class="table-responsive"></div>
-        <div id="pager" class="d-flex justify-content-between align-items-center mt-3 small"></div>
-        <p id="status" class="text-secondary small mt-2"></p>
+        <!-- Right: Auth Tabs -->
+        <div class="col-lg-7 ps-lg-4">
+          <ul class="nav nav-pills mb-3" id="authTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="signin-tab" data-bs-toggle="tab" data-bs-target="#signin" type="button" role="tab" aria-controls="signin" aria-selected="true">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Sign in
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="signup-tab" data-bs-toggle="tab" data-bs-target="#signup" type="button" role="tab" aria-controls="signup" aria-selected="false">
+                <i class="bi bi-person-plus me-1"></i> Sign up
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <!-- Sign in pane -->
+            <div class="tab-pane fade show active" id="signin" role="tabpanel" aria-labelledby="signin-tab" tabindex="0">
+              <div class="row g-3 align-items-center">
+                <div class="col-12">
+                  <label for="si-email" class="form-label">Email</label>
+                  <input id="si-email" class="form-control" type="email" placeholder="first.last@mtacd.org" autocomplete="username" />
+                </div>
+                <div class="col-12">
+                  <label for="si-pass" class="form-label">Password</label>
+                  <div class="input-group">
+                    <input id="si-pass" type="password" class="form-control" placeholder="••••••••" autocomplete="current-password" />
+                    <button class="btn btn-outline-secondary" type="button" data-toggle-password="#si-pass" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                  </div>
+                </div>
+                <div class="col-12 d-grid d-md-block">
+                  <button id="si-btn" class="btn btn-success px-4">Sign in</button>
+                </div>
+              </div>
+
+              <div class="divider my-4"></div>
+              <p class="text-secondary small mb-0 mt-2" id="si-msg"></p>
+            </div>
+
+            <!-- Sign up pane -->
+            <div class="tab-pane fade" id="signup" role="tabpanel" aria-labelledby="signup-tab" tabindex="0">
+              <div class="row g-3 align-items-center">
+                <div class="col-12">
+                  <label for="su-email" class="form-label">Email</label>
+                  <input id="su-email" class="form-control" type="email" placeholder="you@company.com" autocomplete="username" />
+                </div>
+                <div class="col-12">
+                  <label for="su-pass" class="form-label">Password</label>
+                  <div class="input-group">
+                    <input id="su-pass" type="password" class="form-control" placeholder="Create a password" autocomplete="new-password" />
+                    <button class="btn btn-outline-secondary" type="button" data-toggle-password="#su-pass" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                  </div>
+                </div>
+                <div class="col-12 d-grid d-md-block">
+                  <button id="su-btn" class="btn btn-brand px-4">Create account</button>
+                </div>
+              </div>
+              <p class="text-secondary small mb-0 mt-2" id="su-msg"></p>
+            </div>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
+
+    <footer class="text-center mt-4">
+      <small class="text-secondary">© <span id="year"></span> GCL</small>
+    </footer>
   </div>
 
-  <!-- Modal host -->
-  <div id="modal-host"></div>
+  <!-- Reusable modal (kept the same IDs for your existing JS) -->
+  <div class="modal fade" id="appModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-light">
+        <div class="modal-header">
+          <h5 class="modal-title" id="appModalTitle">Notice</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="appModalBody"></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button></div>
+      </div>
+    </div>
+  </div>
 
-  <script type="module">
-    import { requireAuth } from "../auth-guard.js";
-    import { initRouter } from "./modules/router.js";
-    import { buildSidebar } from "./modules/ui/sidebar.js";
-    import { renderTableView } from "./modules/ui/tableView.js";
-    import { TABLES } from "./modules/tables.config.js";
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script>
+    // Keep footer year fresh
+    document.getElementById('year').textContent = new Date().getFullYear();
 
-    await requireAuth();
-
-    // Build sidebar from registry
-    buildSidebar(document.getElementById('table-list'), TABLES);
-
-    // Router: keeps ?t=tablename, p=page, q=search in sync with UI
-    initRouter({
-      onChange: ({ tableKey, page=1, q="" }) => {
-        const def = TABLES[tableKey] ?? TABLES[Object.keys(TABLES)[0]];
-        document.getElementById('page-title').textContent = def.title;
-        renderTableView({
-          def,
-          container: document.getElementById('table-region'),
-          filtersEl: document.getElementById('filters'),
-          pagerEl: document.getElementById('pager'),
-          statusEl: document.getElementById('status'),
-          addBtn: document.getElementById('add-btn'),
-          searchInput: document.getElementById('search-input'),
-          page,
-          search: q
-        });
-      }
+    // Password reveal toggles (non-breaking enhancement)
+    document.querySelectorAll('[data-toggle-password]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.querySelector(btn.getAttribute('data-toggle-password'));
+        if (!input) return;
+        const isPassword = input.getAttribute('type') === 'password';
+        input.setAttribute('type', isPassword ? 'text' : 'password');
+        btn.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+      });
     });
+  </script>
+  
+  <script type="module">
+    import { supabase } from "./auth-guard.js";
+
+    const $ = (s) => document.querySelector(s);
+    const status = $('#status');
+
+    // modal helper
+    function showModal(title, msg) {
+      $('#appModalTitle').textContent = title;
+      $('#appModalBody').textContent = msg;
+      new bootstrap.Modal('#appModal').show();
+    }
+
+    // if already signed in, go straight to landingpage
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) window.location.href = "landingpage.html";
+    })();
+
+    // sign in
+    $('#si-btn').onclick = async () => {
+      const email = $('#si-email').value.trim();
+      const password = $('#si-pass').value;
+      $('#si-msg').textContent = 'Signing in…';
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { $('#si-msg').textContent = ''; showModal('Sign-in Error', error.message); return; }
+      window.location.href = "landingpage.html";
+    };
+
+    // sign up (restrict to @mtacd.org)
+    $('#su-btn').onclick = async () => {
+      const emailInput = $('#su-email');
+      const passInput  = $('#su-pass');
+      const email = emailInput.value.trim();
+      if (!email.endsWith('@mtacd.org')) {
+        showModal('Sign-up Restricted', 'Sign-ups are limited to @mtacd.org addresses.');
+        emailInput.value = ''; passInput.value = ''; emailInput.focus(); return;
+      }
+      const btn = $('#su-btn'); btn.disabled = true;
+      try {
+        $('#su-msg').textContent = 'Signing up…';
+        const { data, error } = await supabase.auth.signUp({
+          email, password: passInput.value,
+          options: { emailRedirectTo: window.location.origin + window.location.pathname.replace('index.html','landingpage.html') }
+        });
+        if (error) return showModal('Sign-up Error', error.message || 'Unable to create account.');
+        showModal('Check your email', 'We sent a confirmation link to finish creating your account.');
+        emailInput.value=''; passInput.value=''; $('#su-msg').textContent='';
+      } finally { btn.disabled = false; }
+    };
+
+    // magic link
+    $('#ml-btn').onclick = async () => {
+      const email = $('#ml-email').value.trim();
+      $('#si-msg').textContent = 'Sending magic link…';
+      const { error } = await supabase.auth.signInWithOtp({
+        email, options: { emailRedirectTo: window.location.origin + '/landingpage.html' }
+      });
+      if (error) return showModal('Magic Link Error', error.message);
+      $('#si-msg').textContent = 'Magic link sent. Check your inbox.';
+    };
   </script>
 </body>
 </html>
