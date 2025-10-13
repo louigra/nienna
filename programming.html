@@ -37,6 +37,22 @@
     .section-title { letter-spacing: .02em; }
     .table-wrap-card{ border-radius: 1rem; }
     .muted { color: #98a2b3; }
+
+    .budget-panel {
+      background: rgba(15,15,18,.35);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    
+    .progress {
+      background: rgba(255,255,255,.06) !important;
+    }
+    .progress-bar.bg-success {
+      background-color: #28a745 !important;
+    }
+    .progress-bar.bg-danger {
+      background-color: #dc3545 !important;
+    }
   </style>
 </head>
 <body>
@@ -243,6 +259,7 @@
     const modalTitle= document.getElementById('projectModalTitle');
 
     let currentRows = [];
+    let currentEnvelope = null;
 
     function getSelectedTier() {
       return Number(tierSelect?.value || 1);
@@ -273,10 +290,66 @@
       return Number.isInteger(out) ? String(out) : out.toFixed(2);
     }
 
+    // Coerce to Number safely; return null if not a finite number
+    const asNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    // Fetch envelope for the current (tier, category, element, cip)
+    async function fetchEnvelopeForFilters({ tier, category, element, cip /*, agency */ }) {
+      const tierVal = asNum(tier);
+      const catVal  = asNum(category);
+      const elemVal = asNum(element);
+      const cipVal  = asNum(cip);
+
+      if (tierVal == null || catVal == null || elemVal == null || cipVal == null) {
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('tier_acep_envelope')
+        .select('acep_envelope')          
+        .eq('tier', tierVal)
+        .eq('category', catVal)
+        .eq('element', elemVal)
+        .eq('cip', cipVal)
+        // .eq('agency', agency)          
+        .maybeSingle();                   // returns data=null when no row, no throw
+
+      if (error) throw error;
+      return data?.acep_envelope ?? null;
+    }
+
+    async function refreshEnvelopeAndRender() {
+      const filters = getFilters();
+      const tier = getSelectedTier();
+    
+      currentEnvelope = null; // reset until we know
+    
+      if (filters.category && filters.element && filters.cip) {
+        try {
+          const envelope = await fetchEnvelopeForFilters({
+            tier,
+            category: filters.category,
+            element:  filters.element,
+            cip:      filters.cip,
+          });
+          currentEnvelope = envelope; // may be null if none
+        } catch (err) {
+          console.error('Envelope fetch error:', err);
+          appMsg.textContent = `Error loading envelope: ${err.message}`;
+        }
+      }
+    
+      // re-render with the envelope we just fetched
+      renderTable(currentRows, getSelectedTier(), currentEnvelope);
+    }
+
     async function loadProjects() {
       appMsg.textContent = 'Loading…';
-
       const filters = getFilters();
+
 
       let query = supabase
         .from('programming_projects')
@@ -304,7 +377,7 @@
 
       currentRows = data || [];
       appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
-      renderTable(currentRows, getSelectedTier());
+      refreshEnvelopeAndRender();
     }
 
     const tierSelect = document.getElementById('tier-select');
@@ -313,7 +386,7 @@
     const cipSelect = document.getElementById('cip-select');
 
     tierSelect.addEventListener('change', () => {
-      renderTable(currentRows, getSelectedTier());
+      refreshEnvelopeAndRender();
     });
 
     categorySelect.addEventListener('change', async () => {
@@ -327,7 +400,7 @@
     });
 
     // Render table
-    function renderTable(rows, tier = 1) {
+    function renderTable(rows, tier = 1, envelope = null) {
       const wrapEl = wrap;
       wrapEl.innerHTML = '';
       if (!rows.length) {
@@ -379,7 +452,6 @@
 
       table.appendChild(tbody);
 
-        // Optional: show a footer row with the total
         const tfoot = document.createElement('tfoot');
         const trf = document.createElement('tr');
         const thLabel = document.createElement('th');
@@ -400,6 +472,62 @@
         table.appendChild(tfoot);
 
       wrapEl.appendChild(table);
+
+      // --- Comparison panel (below the table) ---
+const panel = document.createElement('div');
+panel.className = 'budget-panel mt-3 p-3 rounded-3';
+
+if (envelope != null && Number.isFinite(Number(envelope))) {
+  const total = Number(elementTotal);
+  const env   = Number(envelope);
+  const delta = env - total;  // positive = under; negative = over
+  const within = delta >= 0;
+
+  const fmt = (n) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // progress ratio capped between 0–100%
+  const ratio = env > 0 ? Math.max(0, Math.min(1, total / env)) : 0;
+
+  panel.innerHTML = `
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <div class="small text-secondary">Tier ${getSelectedTier()} Envelope</div>
+        <div class="fs-5 fw-semibold">$${fmt(env)}</div>
+      </div>
+
+      <div class="text-end">
+        <div class="small text-secondary">Current Total</div>
+        <div class="fs-5 fw-semibold">$${fmt(total)}</div>
+      </div>
+
+      <div class="text-end">
+        <div class="small text-secondary">Delta ${within ? '(Remaining)' : '(Over)'}</div>
+        <div class="fs-5 fw-semibold ${within ? 'text-success' : 'text-danger'}">
+          ${within ? '' : '-'}$${fmt(Math.abs(delta))}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <div class="progress bg-transparent border border-1 rounded-pill" style="height: 12px;">
+        <div class="progress-bar ${within ? 'bg-success' : 'bg-danger'}" role="progressbar"
+             style="width: ${ratio * 100}%" aria-valuenow="${(ratio*100).toFixed(0)}"
+             aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
+      <div class="d-flex justify-content-between small mt-1">
+        <span class="text-secondary">0</span>
+        <span class="text-secondary">$${fmt(env)}</span>
+      </div>
+    </div>`;
+
+} else {
+  panel.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between">
+      <div class="small text-secondary">No envelope found for the current filters.</div>
+    </div>`;
+}
+
+wrapEl.appendChild(panel);
 
       // Event delegation: click any row to edit (passes RAW row)
       tbody.onclick = (e) => {
@@ -567,6 +695,8 @@
     
         appMsg.textContent = ''; // clear status
     }
+
+
 
 
     // ---- Boot ----

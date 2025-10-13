@@ -1,10 +1,7 @@
-// correct path from /configurator/modules/ to /auth-guard.js at project root
-console.log('[db] module loaded'); // add this
+
+console.log('[db] module loaded');
 import { supabase } from "../../auth-guard.js";
 
-/**
- * Generic list with paging, filters, and optional per-table search columns.
- */
 export async function listRows({
   table,
   select = "*",

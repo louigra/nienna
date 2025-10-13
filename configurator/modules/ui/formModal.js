@@ -1,4 +1,4 @@
-console.log('[formModal] module loaded');
+
 export async function showFormModal({ def, title, row={} }) {
     const host = document.getElementById("modal-host");
     const id = `m${Date.now()}`;

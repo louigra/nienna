@@ -49,9 +49,10 @@ export async function renderTableView({ def, container, filtersEl, pagerEl, stat
         .filter(sel => sel.value !== "")
         .map(sel => ({ key: sel.getAttribute("data-key"), op: "eq", value: isNaN(sel.value) ? sel.value : Number(sel.value) }));
 
+      const selectKeys = Array.from(new Set([def.pk, ...def.columns.map(c => c.key)])).join(",");
       const { rows, total } = await listRows({
         table: def.table,
-        select: def.columns.map(c => c.key).join(","),
+        select: selectKeys,
         page: nextPage,
         pageSize,
         order: def.defaultSort,
