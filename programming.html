@@ -103,17 +103,22 @@
             <div class="muted small">Use any combination</div>
           </div>
           <form class="row g-2">
-            <div class="col-12 col-sm-4">
+            <div class="col-12 col-sm-3">
+              <label for="agency-select" class="form-label">Agency</label>
+              <select id="agency-select" name="selected-agency" class="form-select">
+              </select>
+            </div>
+            <div class="col-12 col-sm-3">
               <label for="cip-select" class="form-label">CIP</label>
               <select id="cip-select" name="selected-cip" class="form-select">
               </select>
             </div>
-            <div class="col-12 col-sm-4">
+            <div class="col-12 col-sm-3">
               <label for="category-select" class="form-label">Category</label>
               <select id="category-select" name="selected-category" class="form-select">
               </select>
             </div>
-            <div class="col-12 col-sm-4">
+            <div class="col-12 col-sm-3">
               <label for="element-select" class="form-label">Element</label>
               <select id="element-select" name="selected-element" class="form-select">
               </select>
@@ -153,6 +158,10 @@
               </div>
             </div>
             <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="proj-agency">Agency</label>
+                <input id="proj-agency" class="form-control" placeholder="e.g. T">
+              </div>
               <div class="col-6 col-md-2">
                 <label class="form-label" for="proj-category">Category</label>
                 <input id="proj-category" class="form-control" placeholder="e.g., 8" />
@@ -242,6 +251,7 @@
 
     const idInput   = document.getElementById('proj-id');
     const titleEl   = document.getElementById('proj-title');
+    const agencyEl  = document.getElementById('proj-agency');
     const catEl     = document.getElementById('proj-category');
     const elemEl    = document.getElementById('proj-element');
     const cipEl     = document.getElementById('proj-cip');
@@ -267,12 +277,14 @@
 
     function getFilters() {
       const filters = {};
+      const agency = agencySelect?.value;
       const cat = categorySelect?.value;
       const elem = elementSelect?.value;
       const cip = cipSelect?.value;
       if (cat) filters.category = cat;
       if (elem) filters.element = elem;
       if (cip) filters.cip = cip;
+      if (agency) filters.agency = agency;
       return filters;
     }
 
@@ -297,24 +309,25 @@
     };
 
     // Fetch envelope for the current (tier, category, element, cip)
-    async function fetchEnvelopeForFilters({ tier, category, element, cip /*, agency */ }) {
+    async function fetchEnvelopeForFilters({ tier, category, element, cip, agency }) {
       const tierVal = asNum(tier);
       const catVal  = asNum(category);
       const elemVal = asNum(element);
       const cipVal  = asNum(cip);
+      const agencyVal = agency;
 
-      if (tierVal == null || catVal == null || elemVal == null || cipVal == null) {
+      if (tierVal == null || catVal == null || elemVal == null || cipVal == null || agencyVal == null) {
         return null;
       }
 
       const { data, error } = await supabase
         .from('tier_acep_envelope')
-        .select('acep_envelope')          
+        .select('acep_envelope')
+        .eq('agency', agencyVal)          
         .eq('tier', tierVal)
         .eq('category', catVal)
         .eq('element', elemVal)
-        .eq('cip', cipVal)
-        // .eq('agency', agency)          
+        .eq('cip', cipVal)        
         .maybeSingle();                   // returns data=null when no row, no throw
 
       if (error) throw error;
@@ -327,10 +340,11 @@
     
       currentEnvelope = null; // reset until we know
     
-      if (filters.category && filters.element && filters.cip) {
+      if (filters.category && filters.element && filters.cip && filters.agency) {
         try {
           const envelope = await fetchEnvelopeForFilters({
             tier,
+            agency: filters.agency,
             category: filters.category,
             element:  filters.element,
             cip:      filters.cip,
@@ -357,13 +371,14 @@
           id,
           project_title,
           year1value, year2value, year3value, year4value, year5value,
-          cip, category, element,
+          agency, cip, category, element,
           tier1multiplier, tier2multiplier, tier3multiplier,
           estimate_year, award_year
         `)
         .order('id', { ascending: true });
 
       // Apply filters: cip/category = numbers, element = text
+      if (filters.agency)   query = query.eq('agency', filters.agency)
       if (filters.category) query = query.eq('category', Number(filters.category));
       if (filters.cip)      query = query.eq('cip', Number(filters.cip));
       if (filters.element)  query = query.eq('element', filters.element);
@@ -381,6 +396,7 @@
     }
 
     const tierSelect = document.getElementById('tier-select');
+    const agencySelect = document.getElementById('agency-select');
     const categorySelect = document.getElementById('category-select');
     const elementSelect = document.getElementById('element-select');
     const cipSelect = document.getElementById('cip-select');
@@ -388,7 +404,9 @@
     tierSelect.addEventListener('change', () => {
       refreshEnvelopeAndRender();
     });
-
+    agencySelect.addEventListener('change', async () => {
+      await loadProjects();
+    });
     categorySelect.addEventListener('change', async () => {
       await loadProjects();
     });
@@ -545,6 +563,7 @@ wrapEl.appendChild(panel);
     function clearForm() {
       idInput.value = '';
       titleEl.value = '';
+      agencyEl.value = '';
       catEl.value   = '';
       elemEl.value  = '';
       cipEl.value   = '';
@@ -557,6 +576,7 @@ wrapEl.appendChild(panel);
     function fillForm(row) {
       idInput.value = row.id ?? '';
       titleEl.value = row.project_title ?? '';
+      agencyEl.value = row.agency ?? '';
       catEl.value   = row.category ?? '';
       elemEl.value  = row.element ?? '';
       cipEl.value   = row.cip ?? '';
@@ -591,6 +611,7 @@ wrapEl.appendChild(panel);
       const payload = {
         project_title: titleEl.value.trim(),
         category:      catEl.value.trim() || null,
+        agency :       agencyEl.value.trim() || null,
         year1value:    valOrNull(y1El.value),
         year2value:    valOrNull(y2El.value),
         year3value:    valOrNull(y3El.value),
@@ -657,6 +678,7 @@ wrapEl.appendChild(panel);
     
         if (error) throw error;
         return (data || []).map(r => r[column]).filter(v => v !== null && v !== undefined);
+        console.log(data)
     }
     
     function fillSelect(selectEl, values, { display = v => String(v), value = v => String(v) } = {}) {
@@ -672,12 +694,18 @@ wrapEl.appendChild(panel);
     async function buildFiltersFromACEPs() {
         appMsg.textContent = 'Loading filters…';
     
-        const [cips, cats, elems] = await Promise.all([
+        const [agencies, cips, cats, elems] = await Promise.all([
+        getDistinct('aceps', 'agency'),
         getDistinct('aceps', 'cip'),
         getDistinct('aceps', 'category'),
         getDistinct('aceps', 'element')
         ]);
-    
+      
+        fillSelect(agencySelect, agencies, {
+          value: v => String(v),
+          display: v => String(v)
+        });
+
         fillSelect(cipSelect, cips, {
         value: v => String(v),
         display: v => String(v)
@@ -693,11 +721,8 @@ wrapEl.appendChild(panel);
         display: v => String(v).padStart(2,'0')
         });
     
-        appMsg.textContent = ''; // clear status
+        appMsg.textContent = ''; 
     }
-
-
-
 
     // ---- Boot ----
     try {
