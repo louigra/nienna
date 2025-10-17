@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nienna — Programming</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="./styles.css" rel="stylesheet" />
+  <style>
+    :root {
+      --brand: #0039A6;
+      --glass-bg: rgba(18, 20, 25, 0.6);
+      --glass-border: rgba(255,255,255,.08);
+    }
+    body { 
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
+                  radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
+                  linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
+      min-height: 100vh;
+    }
+    .page-header {
+      background: linear-gradient(90deg, rgba(0, 57, 166, .2), rgba(233, 87, 77, 0));
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .toolbar-card, .filters-card, .table-wrap-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 1rem;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .btn-brand { background: var(--brand); border-color: var(--brand); }
+    .btn-brand:hover { filter: brightness(1.08); }
+    .select-inline { min-width: 120px; }
+    .section-title { letter-spacing: .02em; }
+    .table-wrap-card{ border-radius: 1rem; }
+    .muted { color: #98a2b3; }
+
+    .budget-panel {
+      background: rgba(15,15,18,.35);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    
+    .progress {
+      background: rgba(255,255,255,.06) !important;
+    }
+    .progress-bar.bg-success {
+      background-color: #28a745 !important;
+    }
+    .progress-bar.bg-danger {
+      background-color: #dc3545 !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <i class="bi bi-terminal fs-3 text-warning"></i>
+          <div>
+            <h1 class="h4 mb-0">Project Manager</h1>
+            <div class="muted small">Manage Ongoing Projects</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button id="add-btn" class="btn btn-brand"><i class="bi bi-plus-circle me-1"></i> Add Project</button>
+          <a class="btn btn-outline-light" href="../../landingpage.html"><i class="bi bi-grid-3x3-gap text-warning me-1"></i> Back to Tiles</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container py-4">
+    <!-- Controls Row -->
+    <div class="row g-3 align-items-stretch mb-3">
+      <!-- Tier card -->
+      <div class="col-12 col-lg-4">
+        <div class="toolbar-card h-100 p-3">
+          <h2 class="h6 mb-3 section-title">Tier</h2>
+          <form class="row g-2 align-items-center">
+            <div class="col-auto"><label for="tier-select" class="col-form-label">Tier</label></div>
+            <div class="col-auto">
+              <select id="tier-select" name="selected-tier" class="form-select select-inline">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Filters card -->
+      <div class="col-12 col-lg-8">
+        <div class="filters-card h-100 p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h6 mb-0 section-title">ACEP Filters</h2>
+            <div class="muted small">Use any combination</div>
+          </div>
+          <form class="row g-2">
+            <div class="col-12 col-sm-3">
+              <label for="agency-select" class="form-label">Agency</label>
+              <select id="agency-select" name="selected-agency" class="form-select">
+              </select>
+            </div>
+            <div class="col-12 col-sm-3">
+              <label for="cip-select" class="form-label">CIP</label>
+              <select id="cip-select" name="selected-cip" class="form-select">
+              </select>
+            </div>
+            <div class="col-12 col-sm-3">
+              <label for="category-select" class="form-label">Category</label>
+              <select id="category-select" name="selected-category" class="form-select">
+              </select>
+            </div>
+            <div class="col-12 col-sm-3">
+              <label for="element-select" class="form-label">Element</label>
+              <select id="element-select" name="selected-element" class="form-select">
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table area -->
+    <div class="table-wrap-card h-100 p-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h6 mb-0 section-title">Projects</h2>
+        <div class="muted small">Click any row to edit that project</div>
+      </div>
+      <div id="table-wrap" class="table-responsive"></div>
+    </div>
+
+    <p class="text-secondary small mt-2" id="app-msg"></p>
+  </div>
+
+  <!-- Add/Edit Project Modal (IDs preserved) -->
+  <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content bg-dark text-light">
+        <div class="modal-header">
+          <h5 class="modal-title" id="projectModalTitle">Add Project</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="projectForm">
+          <div class="modal-body">
+            <input type="hidden" id="proj-id" />
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="proj-title">Project Title</label>
+                <input id="proj-title" class="form-control" placeholder="e.g., Fiber Optic Cable" required />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="proj-agency">Agency</label>
+                <input id="proj-agency" class="form-control" placeholder="e.g. T">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="proj-category">Category</label>
+                <input id="proj-category" class="form-control" placeholder="e.g., 8" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="proj-element">Element</label>
+                <input id="proj-element" class="form-control" placeholder="e.g., 01" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="proj-cip">CIP</label>
+                <input id="proj-cip" class="form-control" placeholder="e.g., 9" />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="y1">Year 1</label>
+                <input id="y1" type="number" step="1" class="form-control" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="y2">Year 2</label>
+                <input id="y2" type="number" step="1" class="form-control" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="y3">Year 3</label>
+                <input id="y3" type="number" step="1" class="form-control" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="y4">Year 4</label>
+                <input id="y4" type="number" step="1" class="form-control" />
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="y5">Year 5</label>
+                <input id="y5" type="number" step="1" class="form-control" />
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="t1multiplier">Tier 1 Multiplier</label>
+                <input id="t1multiplier" type="number" step="0.01" class="form-control"/>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="t2multiplier">Tier 2 Multiplier</label>
+                <input id="t2multiplier" type="number" step="0.01" class="form-control"/>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="t3multiplier">Tier 3 Multiplier</label>
+                <input id="t3multiplier" type="number" step="0.01" class="form-control"/>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="estimateYear">Estimate Year</label>
+                <input id="estimateYear" type="number" step="1" class="form-control"/>
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label" for="awardYear">Award Year</label>
+                <input id="awardYear" type="number" step="1" class="form-control"/>
+              </div>
+            </div>
+          </div><!-- /modal-body -->
+
+          <div class="modal-footer">
+            <button id="delete-btn" type="button" class="btn btn-outline-danger me-auto d-none"><i class="bi bi-trash"></i> Delete</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button id="save-btn" type="submit" class="btn btn-brand"><i class="bi bi-save2 me-1"></i> Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Bootstrap JS bundle (for Modal) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+  <script type="module">
+    import { supabase, requireAuth } from "../auth-guard.js";
+    
+
+    const wrap   = document.getElementById('table-wrap');
+    const appMsg = document.getElementById('app-msg');
+    const addBtn = document.getElementById('add-btn');
+
+    const modalEl = document.getElementById('projectModal');
+    const modal   = new bootstrap.Modal(modalEl);
+    const form    = document.getElementById('projectForm');
+
+    const idInput   = document.getElementById('proj-id');
+    const titleEl   = document.getElementById('proj-title');
+    const agencyEl  = document.getElementById('proj-agency');
+    const catEl     = document.getElementById('proj-category');
+    const elemEl    = document.getElementById('proj-element');
+    const cipEl     = document.getElementById('proj-cip');
+
+
+
+
+
+    const deleteBtn = document.getElementById('delete-btn');
+    const modalTitle= document.getElementById('projectModalTitle');
+
+    let currentRows = [];
+    let currentEnvelope = null;
+
+    function getFilters() {
+      const filters = {};
+      const agency = agencySelect?.value;
+      const cat = categorySelect?.value;
+      const elem = elementSelect?.value;
+      const cip = cipSelect?.value;
+      if (cat) filters.category = cat;
+      if (elem) filters.element = elem;
+      if (cip) filters.cip = cip;
+      if (agency) filters.agency = agency;
+      return filters;
+    };
+
+
+
+    // Coerce to Number safely; return null if not a finite number
+    const asNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+
+
+    async function loadProjects() {
+      appMsg.textContent = 'Loading…';
+      const filters = getFilters();
+
+
+      let query = supabase
+        .from('projects_live')
+        .select(`
+          id,
+          project_title,
+          psr_key, planning_number_prefix, planning_number_suffix, project_id, pse_number, 
+          agency, cip, category, element, project_acep
+        `)
+        .order('id', { ascending: true });
+
+      // Apply filters: cip/category = numbers, element = text
+      if (filters.agency)   query = query.eq('agency', filters.agency)
+      if (filters.category) query = query.eq('category', Number(filters.category));
+      if (filters.cip)      query = query.eq('cip', Number(filters.cip));
+      if (filters.element)  query = query.eq('element', filters.element);
+
+      const { data, error } = await query;
+
+      if (error) { 
+        appMsg.textContent = error.message; 
+        return; 
+      }
+
+      currentRows = data || [];
+      console.log(data)
+      appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
+      renderTable(currentRows);
+    }
+
+    const tierSelect = document.getElementById('tier-select');
+    const agencySelect = document.getElementById('agency-select');
+    const categorySelect = document.getElementById('category-select');
+    const elementSelect = document.getElementById('element-select');
+    const cipSelect = document.getElementById('cip-select');
+
+    agencySelect.addEventListener('change', async () => {
+      await loadProjects();
+    });
+    categorySelect.addEventListener('change', async () => {
+      await loadProjects();
+    });
+    elementSelect.addEventListener('change', async () => {
+      await loadProjects();
+    });
+    cipSelect.addEventListener('change', async () => {
+      await loadProjects();
+    });
+
+    // Render table
+    function renderTable(rows) {
+      const wrapEl = wrap;
+      wrapEl.innerHTML = '';
+      if (!rows.length) {
+        wrapEl.innerHTML = '<div class="text-secondary">No rows.</div>';
+        return;
+      }
+
+      const headers = ['id','project_title','psr_key', 'planning_number_prefix', 'planning_number_suffix', 'project_id', 'pse_number', 'agency', 'cip', 'category', 'element', 'project_acep'];
+
+      const table = document.createElement('table');
+      table.className = 'table table-sm table-striped table-hover align-middle';
+
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      headers.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        trh.appendChild(th);
+      });
+      thead.appendChild(trh);
+      table.appendChild(thead);
+      
+      const tbody = document.createElement('tbody');
+
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = r.id;
+
+        
+
+        headers.forEach(h => {
+          const td = document.createElement('td');
+            td.textContent = r[h] ?? '';
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+
+      wrapEl.appendChild(table);
+
+      // --- Comparison panel (below the table) ---
+const panel = document.createElement('div');
+panel.className = 'budget-panel mt-3 p-3 rounded-3';
+
+wrapEl.appendChild(panel);
+
+      // Event delegation: click any row to edit (passes RAW row)
+    //   tbody.onclick = (e) => {
+    //     const tr = e.target.closest('tr');
+    //     if (!tr) return;
+    //     const id = Number(tr.dataset.id);
+    //     const row = currentRows.find(x => x.id === id);
+    //     if (row) openEditModal(row);
+    //   };
+     }
+
+    // Open modal for adding new
+    addBtn.onclick = () => openAddModal();
+
+    function clearForm() {
+      idInput.value = '';
+      titleEl.value = '';
+      agencyEl.value = '';
+      catEl.value   = '';
+      elemEl.value  = '';
+      cipEl.value   = '';
+
+    }
+
+    function openAddModal() {
+      clearForm();
+      modalTitle.textContent = 'Add Project';
+      deleteBtn.classList.add('d-none');
+      modal.show();
+    }
+
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const payload = {
+        project_title: titleEl.value.trim(),
+        agency :       agencyEl.value.trim() || null,
+        category:      catEl.value.trim() || null,
+        cip:           valOrNull(cipEl.value), 
+        element:       (elemEl.value.trim() || null),
+
+      };
+
+      const id = idInput.value ? Number(idInput.value) : null;
+      let error;
+
+      if (!payload.project_title) {
+        titleEl.focus();
+        return;
+      }
+
+      if (id) {
+        ({ error } = await supabase.from('programming_projects').update(payload).eq('id', id));
+      } else {
+        ({ error } = await supabase.from('programming_projects').insert([payload]));
+      }
+
+      if (error) {
+        appMsg.textContent = error.message;
+        return;
+      }
+
+      modal.hide();
+      await loadProjects();
+    };
+
+    deleteBtn.onclick = async () => {
+      const id = idInput.value ? Number(idInput.value) : null;
+      if (!id) return;
+      if (!confirm('Delete this project?')) return;
+
+      const { error } = await supabase.from('programming_projects').delete().eq('id', id);
+      if (error) { appMsg.textContent = error.message; return; }
+
+      modal.hide();
+      await loadProjects();
+    };
+
+    function valOrNull(v) {
+      if (v === '' || v === null || v === undefined) return null;
+      const n = Number(v);
+      return Number.isNaN(n) ? null : n;
+    }
+
+    // --- Distinct helper & filter builder (ACEPs) ---
+
+    async function getDistinct(table, column) {
+        const { data, error } = await supabase
+        .from(table)
+        .select(column, { distinct: true })
+        .not(column, 'is', null)
+        .order(column, { ascending: true });
+    
+        if (error) throw error;
+        return (data || []).map(r => r[column]).filter(v => v !== null && v !== undefined);
+        console.log(data)
+    }
+    
+    function fillSelect(selectEl, values, { display = v => String(v), value = v => String(v) } = {}) {
+        selectEl.innerHTML = '<option value="">All</option>';
+        const uniq = [...new Set(values)];
+        for (const v of uniq) {
+        const opt = document.createElement('option');
+        opt.value = value(v);
+        opt.textContent = display(v);
+        selectEl.appendChild(opt);
+        }
+    }
+    async function buildFiltersFromACEPs() {
+        appMsg.textContent = 'Loading filters…';
+    
+        const [agencies, cips, cats, elems] = await Promise.all([
+        getDistinct('aceps', 'agency'),
+        getDistinct('aceps', 'cip'),
+        getDistinct('aceps', 'category'),
+        getDistinct('aceps', 'element')
+        ]);
+      
+        fillSelect(agencySelect, agencies, {
+          value: v => String(v),
+          display: v => String(v)
+        });
+
+        fillSelect(cipSelect, cips, {
+        value: v => String(v),
+        display: v => String(v)
+        });
+    
+        fillSelect(categorySelect, cats, {
+        value: v => String(v),
+        display: v => String(v)
+        });
+    
+        fillSelect(elementSelect, elems, {
+        value: v => String(v),
+        display: v => String(v).padStart(2,'0')
+        });
+    
+        appMsg.textContent = ''; 
+    }
+
+    // ---- Boot ----
+    try {
+      await requireAuth();
+      await buildFiltersFromACEPs();
+      await loadProjects();
+    } catch (err) {
+      console.error('Initialization error:', err);
+      if (appMsg) appMsg.textContent = 'Error during initialization. See console.';
+    }
+  </script>
+</body>
+</html>
