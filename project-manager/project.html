@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nienna — Project</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="./styles.css" rel="stylesheet" />
+  <style>
+    :root { --brand:#0039A6; --glass-bg:rgba(18,20,25,.6); --glass-border:rgba(255,255,255,.08); }
+    body {
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
+                  radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
+                  linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
+      min-height: 100vh;
+    }
+    .panel { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:1rem; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+    .nav-rail { min-width: 260px; }
+    .btn-brand { background:var(--brand); border-color:var(--brand); }
+    .btn-brand:hover { filter:brightness(1.08); }
+
+    /* Comment thread UI */
+    .comment-thread .comment-card {
+        background: rgba(18,20,25,.7);
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: .75rem;
+    }
+    .comment-thread .comment-body {
+        white-space: pre-wrap;
+    }
+    .comment-thread .children {
+        margin-left: 1.25rem;          /* indent replies */
+        padding-left: 1rem;
+        border-left: 2px solid rgba(255,255,255,.08); /* vertical guide */
+    }
+    .comment-thread .meta {
+        color: #98a2b3;
+        font-size: .875rem;
+    }
+    .comment-thread .comment-actions .btn {
+        --bs-btn-padding-y: .15rem;
+        --bs-btn-padding-x: .5rem;
+        --bs-btn-font-size: .8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <a class="btn btn-outline-light btn-sm" href="./managerDash.html"><i class="bi bi-arrow-left"></i> Back to Projects</a>
+        <h1 class="h4 mb-0 mt-2" id="proj-title">Project</h1>
+        <div class="text-secondary small" id="proj-subtitle"></div>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="add-event-btn" class="btn btn-brand"><i class="bi bi-plus-circle me-1"></i> Add Event</button>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-12 col-lg-3">
+        <div class="panel p-2 nav-rail">
+          <div class="list-group" id="event-types-list" role="tablist"></div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-9">
+        <div class="panel p-3">
+          <div id="content-wrap">
+            <div class="text-secondary">Select an event type on the left.</div>
+          </div>
+          <p class="text-secondary small mt-2" id="page-msg"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- Add Comment Modal -->
+    <div class="modal fade" id="addCommentModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header">
+            <h5 class="modal-title">Add Comment</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+    
+            <form id="add-comment-form">
+            <div class="modal-body">
+                <input type="hidden" id="parent-comment-id" />
+                <div class="mb-3">
+                <label for="comment-body" class="form-label">Comment</label>
+                <textarea id="comment-body" class="form-control" rows="5"
+                            placeholder="Type your comment…" required></textarea>
+                <div class="form-text text-secondary">Tip: press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to submit</div>
+                </div>
+                <div class="small text-danger d-none" id="add-comment-error"></div>
+            </div>
+    
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button id="add-comment-submit" type="submit" class="btn btn-brand">
+                <i class="bi bi-send"></i> Post Comment
+                </button>
+            </div>
+            </form>
+        </div>
+        </div>
+    </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script type="module">
+    import { supabase, requireAuth } from "../auth-guard.js";
+    import { EVENT_TYPES } from "./events.config.js"; // adjust path if needed
+
+    const msg = document.getElementById('page-msg');
+    const titleEl = document.getElementById('proj-title');
+    const subtitleEl = document.getElementById('proj-subtitle');
+    const listEl = document.getElementById('event-types-list');
+    const content = document.getElementById('content-wrap');
+    const addBtn = document.getElementById('add-event-btn');
+
+    const projectId = new URLSearchParams(location.search).get('project_id');
+
+    // --- guard ---
+    try { await requireAuth(); } catch (e) {
+      console.error(e); msg.textContent = 'Auth required'; throw e;
+    }
+    if (!projectId) {
+      msg.textContent = 'Missing project_id in URL';
+      throw new Error('No project_id');
+    }
+
+    // --- load project header ---
+    async function loadProjectHeader() {
+      msg.textContent = 'Loading project…';
+      const { data, error } = await supabase
+        .from('projects_live')
+        .select('id, project_title, agency, cip, category, element, project_acep')
+        .eq('id', projectId)
+        .single();
+      if (error) { msg.textContent = error.message; return; }
+      titleEl.textContent = data.project_title || `${data.project_title}`;
+      subtitleEl.textContent = `Agency ${data.agency ?? '-'} · CIP ${data.cip ?? '-'} · Cat ${data.category ?? '-'} · Elem ${data.element ?? '-'}`;
+      msg.textContent = '';
+    }
+
+    // --- build left rail from config ---
+    function buildNav() {
+        listEl.innerHTML = '';
+      
+        // Add Feed tab first
+        const feed = document.createElement('a');
+        feed.href = '#feed';
+        feed.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2';
+        feed.setAttribute('role','tab');
+        feed.dataset.key = 'feed';
+        feed.innerHTML = `<i class="bi bi-newspaper"></i><span>Feed</span>`;
+        listEl.appendChild(feed);
+      
+        // Then add configured event types
+        for (const t of EVENT_TYPES) {
+          const a = document.createElement('a');
+          a.href = `#${encodeURIComponent(t.key)}`;
+          a.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2';
+          a.setAttribute('role','tab');
+          a.dataset.key = t.key;
+          a.innerHTML = `<i class="bi bi-${t.icon || 'collection'}"></i><span>${t.label}</span>`;
+          listEl.appendChild(a);
+        }
+      }
+
+    // --- simple router: hash = event type key ---
+    function getActiveTypeKey() {
+        const key = (location.hash || '').replace(/^#/, '');
+        return key || 'feed';  // default to feed
+    }
+
+    window.addEventListener('hashchange', () => {
+      setActiveLink();
+      loadEventsForType(getActiveTypeKey());
+    });
+
+    function setActiveLink() {
+      const active = getActiveTypeKey();
+      [...listEl.children].forEach(a => {
+        a.classList.toggle('active', a.dataset.key === active);
+      });
+    }
+
+    // --- loading events ---
+    async function loadEventsForType(typeKey) {
+        // FEED: unchanged
+        if (typeKey === 'feed') {
+          msg.textContent = 'Loading feed…';
+          const { data, error } = await supabase
+            .from('events')
+            .select('*')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: false });
+      
+          if (error) { content.innerHTML = `<div class="text-danger">${error.message}</div>`; msg.textContent=''; return; }
+      
+          const rows = (data || []).map(r => {
+            const def = EVENT_TYPES.find(t => t.key === r.event_type || t.eventTypes?.includes?.(r.event_type));
+            return { ...r, __label: def?.label || r.event_type, __icon: def?.icon || 'circle' };
+          });
+          renderFeed(rows);
+          msg.textContent = '';
+          return;
+        }
+      
+        // COMMENTS: fetch from comments table and build a thread
+        if (typeKey === 'comments') {
+          msg.textContent = 'Loading comments…';
+      
+          // Pull only what we need; include author if you have a profile relation
+          const { data, error } = await supabase
+            .from('comments')
+            .select('id, project_id, author_id, body, parent_comment_id, created_at')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: true }); // oldest->newest helps build a stable tree
+      
+          if (error) { content.innerHTML = `<div class="text-danger">${error.message}</div>`; msg.textContent=''; return; }
+      
+          renderCommentsThread(data || []);
+          msg.textContent = '';
+          return;
+        }
+      
+        // OTHER TYPES: current behavior stays the same
+        const def = EVENT_TYPES.find(t => t.key === typeKey);
+        if (!def) {
+          content.innerHTML = '<div class="text-danger">Unknown event type.</div>';
+          return;
+        }
+      
+        msg.textContent = 'Loading events…';
+        let q = supabase.from('events').select('*').eq('project_id', projectId);
+        if (Array.isArray(def.eventTypes) && def.eventTypes.length) {
+          q = q.in('event_type', def.eventTypes);
+        } else {
+          q = q.eq('event_type', typeKey);
+        }
+        const { data, error } = await q.order(def.orderBy || 'created_at', { ascending: false });
+      
+        if (error) { content.innerHTML = `<div class="text-danger">${error.message}</div>`; msg.textContent=''; return; }
+        renderEventList(def, data || []);
+        msg.textContent = '';
+      }
+
+    function renderEventList(def, rows) {
+      if (!rows.length) {
+        content.innerHTML = `<div class="text-secondary">No ${def.label.toLowerCase()} yet.</div>`;
+        return;
+      }
+      const fields = def.listFields || ['title','status','created_at']; // fallback if not provided
+      const table = document.createElement('table');
+      table.className = 'table table-sm table-hover align-middle';
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      for (const f of fields) {
+        const th = document.createElement('th'); th.textContent = f; trh.appendChild(th);
+      }
+      thead.appendChild(trh); table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        for (const f of fields) {
+          const td = document.createElement('td');
+          td.textContent = (r[f] ?? '').toString();
+          tr.appendChild(td);
+        }
+        // optional: click to open event editor modal later
+        // Example inside your renderEventList for comments rows:
+        const tdActions = document.createElement('td');
+        const replyBtn = document.createElement('button');
+        replyBtn.className = 'btn btn-sm btn-outline-light';
+        replyBtn.innerHTML = '<i class="bi bi-reply"></i> Reply';
+        replyBtn.addEventListener('click', () => {
+          // if you have a comments table id in payload, you can pass it; otherwise omit for top-level
+          openAddCommentModal(null);
+        });
+        tdActions.appendChild(replyBtn);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+      }
+
+
+      table.appendChild(tbody);
+      content.innerHTML = '';
+      content.appendChild(table);
+    }
+
+    function renderFeed(rows) {
+        if (!rows.length) {
+          content.innerHTML = `<div class="text-secondary">No events yet.</div>`;
+          return;
+        }
+      
+        const wrap = document.createElement('div');
+        wrap.className = 'list-group list-group-flush';
+      
+        for (const r of rows) {
+          const title = r.title ?? r.filename ?? r.summary ?? r.body?.slice?.(0, 120) ?? '(no title)';
+          const meta = [
+            r.__label,
+            r.created_by ? `· ${r.created_by}` : ''
+          ].join(' ');
+      
+          const item = document.createElement('div');
+          item.className = 'list-group-item bg-transparent border-secondary-subtle text-light';
+          item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-baseline">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-${r.__icon}"></i>
+                <strong>${title}</strong>
+              </div>
+              <small class="text-secondary">${new Date(r.created_at).toLocaleString()}</small>
+            </div>
+            <small class="text-secondary">${meta}</small>
+            ${r.body ? `<div class="mt-1 small text-light">${r.body}</div>` : ''}
+          `;
+          wrap.appendChild(item);
+        }
+      
+        content.innerHTML = '';
+        content.appendChild(wrap);
+      }
+
+      function renderCommentsThread(rows) {
+        // Build an index and child lists
+        const byId = new Map();
+        const children = new Map();
+        for (const r of rows) {
+          byId.set(r.id, r);
+          children.set(r.id, []);
+        }
+        const roots = [];
+        for (const r of rows) {
+          const pid = r.parent_comment_id;
+          if (pid && byId.has(pid)) {
+            children.get(pid).push(r);
+          } else {
+            roots.push(r);
+          }
+        }
+      
+        // Sort children per parent by created_at ascending for readability
+        const byDateAsc = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+        for (const arr of children.values()) arr.sort(byDateAsc);
+        roots.sort(byDateAsc);
+      
+        // Render recursively
+        const wrap = document.createElement('div');
+        wrap.className = 'comment-thread d-flex flex-column gap-3';
+      
+        function cardForComment(c) {
+          const card = document.createElement('div');
+          card.className = 'comment-card p-3';
+      
+          // header
+          const header = document.createElement('div');
+          header.className = 'd-flex justify-content-between align-items-baseline mb-1 meta';
+          const who = document.createElement('div');
+          // If you have profiles, replace author_id with a name (pull via a join or cache)
+          who.textContent = c.author_id ? `@${String(c.author_id).slice(0,8)}` : 'Unknown';
+          const when = document.createElement('small');
+          when.className = 'text-secondary';
+          when.textContent = new Date(c.created_at).toLocaleString();
+          header.appendChild(who);
+          header.appendChild(when);
+      
+          // body
+          const body = document.createElement('div');
+          body.className = 'comment-body';
+          body.textContent = c.body || '';
+      
+          // actions
+          const actions = document.createElement('div');
+          actions.className = 'comment-actions mt-2';
+          const replyBtn = document.createElement('button');
+          replyBtn.className = 'btn btn-outline-light btn-sm';
+          replyBtn.innerHTML = '<i class="bi bi-reply"></i> Reply';
+          replyBtn.addEventListener('click', () => openAddCommentModal(c.id));
+          actions.appendChild(replyBtn);
+      
+          card.appendChild(header);
+          card.appendChild(body);
+          card.appendChild(actions);
+          return card;
+        }
+      
+        function renderNode(c) {
+          const block = document.createElement('div');
+          block.appendChild(cardForComment(c));
+      
+          const kids = children.get(c.id) || [];
+          if (kids.length) {
+            const kidWrap = document.createElement('div');
+            kidWrap.className = 'children mt-3 d-flex flex-column gap-3';
+            for (const k of kids) {
+              kidWrap.appendChild(renderNode(k));
+            }
+            block.appendChild(kidWrap);
+          }
+          return block;
+        }
+      
+        for (const root of roots) wrap.appendChild(renderNode(root));
+      
+        content.innerHTML = '';
+        content.appendChild(wrap);
+      }
+
+        // === Add Comment Modal wiring ===
+        const addEventBtn = document.getElementById('add-event-btn');   // you already have this button
+        const addCmtModalEl = document.getElementById('addCommentModal');
+        const addCmtModal   = new bootstrap.Modal(addCmtModalEl);
+        const addCmtForm    = document.getElementById('add-comment-form');
+        const cmtBodyEl     = document.getElementById('comment-body');
+        const parentIdEl    = document.getElementById('parent-comment-id');
+        const addCmtErrEl   = document.getElementById('add-comment-error');
+        const addCmtSubmit  = document.getElementById('add-comment-submit');
+
+        // helper: which tab is active (#feed default)
+        function activeTabKey() {
+        return (location.hash || '').replace(/^#/, '') || 'feed';
+        }
+
+        // open modal (optionally pass a parent comment id to create a reply)
+        function openAddCommentModal(parentId = null) {
+        parentIdEl.value = parentId ? String(parentId) : '';
+        addCmtErrEl.classList.add('d-none');
+        addCmtErrEl.textContent = '';
+        cmtBodyEl.value = '';
+        addCmtModal.show();
+
+        // focus textarea when modal fully shown
+        setTimeout(() => cmtBodyEl.focus(), 200);
+        }
+
+        // Add Event button -> for now it opens Add Comment.
+        // (Later you can branch by activeTabKey() to open other editors.)
+        addEventBtn.addEventListener('click', () => {
+        openAddCommentModal();  // no parent id (a top-level comment)
+        });
+
+        // Submit with Ctrl+Enter from textarea
+        cmtBodyEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            addCmtForm.requestSubmit();
+        }
+        });
+
+        // Handle form submit -> call RPC
+        addCmtForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const body = (cmtBodyEl.value || '').trim();
+        if (!body) { cmtBodyEl.focus(); return; }
+
+        // disable while posting
+        addCmtSubmit.disabled = true;
+
+        try {
+            const clientReqId = crypto.randomUUID(); // idempotency key
+            const parentId = parentIdEl.value ? Number(parentIdEl.value) : null;
+
+            const { data, error } = await supabase.rpc('app_add_comment', {
+            p_project_id: Number(projectId),
+            p_body: body,
+            p_parent_comment_id: parentId,
+            p_client_req_id: clientReqId
+            });
+
+            if (error) throw error;
+
+            // close modal & refresh the visible list
+            addCmtModal.hide();
+
+            // If you're on Feed, refresh feed; if on Comments, refresh that tab;
+            // otherwise default to feed for visibility.
+            const tab = activeTabKey();
+            if (tab === 'comments') {
+            await loadEventsForType('comments');
+            } else if (tab === 'feed') {
+            await loadEventsForType('feed');
+            } else {
+            // optional: jump to feed to show the new comment
+            location.hash = '#feed';
+            await loadEventsForType('feed');
+            }
+        } catch (err) {
+            addCmtErrEl.textContent = err?.message || 'Failed to post comment.';
+            addCmtErrEl.classList.remove('d-none');
+        } finally {
+            addCmtSubmit.disabled = false;
+        }
+        });
+
+    // --- boot ---
+    await loadProjectHeader();
+    buildNav();
+    setActiveLink();
+    await loadEventsForType(getActiveTypeKey());
+  </script>
+</body>
+</html>

@@ -219,14 +219,23 @@
     })();
 
     // sign in
-    $('#si-btn').onclick = async () => {
+
+    async function loginWithEmail() {
       const email = $('#si-email').value.trim();
       const password = $('#si-pass').value;
       $('#si-msg').textContent = 'Signing in…';
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { $('#si-msg').textContent = ''; showModal('Sign-in Error', error.message); return; }
       window.location.href = "landingpage.html";
-    };
+      return error;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        loginWithEmail();
+      }
+    });
+
+    $('#si-btn').onclick = loginWithEmail;
 
     // sign up (restrict to @mtacd.org)
     $('#su-btn').onclick = async () => {
