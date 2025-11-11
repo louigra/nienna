@@ -54,7 +54,8 @@
         <div class="text-secondary small" id="proj-subtitle"></div>
       </div>
       <div class="d-flex gap-2">
-        <button id="add-event-btn" class="btn btn-brand"><i class="bi bi-plus-circle me-1"></i> Add Event</button>
+        <button id="add-note-btn" class="btn btn-brand"><i class="bi bi-sticky me-1"></i> Add Note</button>
+        <button id="add-estimate-btn" class="btn btn-brand"><i class="bi bi-calculator me-1"></i> Add Estimate</button>
       </div>
     </div>
 
@@ -107,37 +108,72 @@
         </div>
     </div>
 
-    <!-- Add Event (Note) Modal -->
-<div class="modal fade" id="addEventModal" tabindex="-1" aria-hidden="true">
+    <!-- Add Note Modal -->
+<div class="modal fade" id="addNoteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content bg-dark text-light">
         <div class="modal-header">
-          <h5 class="modal-title">Add Event</h5>
+          <h5 class="modal-title">Add Note</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
   
-        <form id="add-event-form">
+        <form id="add-note-form">
           <div class="modal-body">
             <div class="mb-3">
-              <label for="event-type" class="form-label">Type</label>
-              <select id="event-type" class="form-select">
-                <option value="note.added" selected>Note</option>
-                <!-- Add more event types here later if you want -->
-              </select>
             </div>
             <div class="mb-3">
-              <label for="event-body" class="form-label">Details</label>
-              <textarea id="event-body" class="form-control" rows="5"
+              <label for="note-body" class="form-label">Details</label>
+              <textarea id="note-body" class="form-control" rows="5"
                 placeholder="What happened?" required></textarea>
               <div class="form-text text-secondary">A summary will be generated from the first 140 characters.</div>
             </div>
-            <div class="small text-danger d-none" id="add-event-error"></div>
+            <div class="small text-danger d-none" id="add-note-error"></div>
           </div>
   
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button id="add-event-submit" type="submit" class="btn btn-brand">
-              <i class="bi bi-plus-circle"></i> Add Event
+            <button id="add-note-submit" type="submit" class="btn btn-brand">
+              <i class="bi bi-plus-circle"></i> Submit
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+      <!-- Add Estimate Modal -->
+<div class="modal fade" id="addEstimateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-light">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Estimate</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+  
+        <form id="add-estimate-form">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="estimate-type" class="form-label">Type</label>
+              <select id="estimate-type" class="form-select">
+                <option value="profile" selected>Profile</option>
+                <option value="ipb" selected>Initial Baseline</option>
+                <option value="upb" selected>Updated Baseline</option>
+                <option value="rta" selected>RTA</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="estimate-body" class="form-label">Estimate Tasks</label>
+              <textarea id="estimate-body" class="form-control" rows="5"
+                placeholder="What happened?" required></textarea>
+              <div class="form-text text-secondary">A summary will be generated from the first 140 characters.</div>
+            </div>
+            <div class="small text-danger d-none" id="add-estimate-error"></div>
+          </div>
+  
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button id="add-estimate-submit" type="submit" class="btn btn-brand">
+              <i class="bi bi-plus-circle"></i> Submit
             </button>
           </div>
         </form>
@@ -148,14 +184,15 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script type="module">
     import { supabase, requireAuth } from "../auth-guard.js";
-    import { EVENT_TYPES } from "./events.config.js"; // adjust path if needed
+    import { EVENT_TYPES } from "./events.config.js";
 
     const msg = document.getElementById('page-msg');
     const titleEl = document.getElementById('proj-title');
     const subtitleEl = document.getElementById('proj-subtitle');
     const listEl = document.getElementById('event-types-list');
     const content = document.getElementById('content-wrap');
-    const addBtn = document.getElementById('add-event-btn');
+    const addNoteBtn = document.getElementById('add-note-btn');
+    const addEstimateBtn = document.getElementById('add-estimate-btn')
 
     const projectId = new URLSearchParams(location.search).get('project_id');
 
@@ -399,7 +436,7 @@ function renderCommentThread(rows, onReply) {
     return wrap;
   }
 // === Add Event Comment Modal wiring ===
-const addEventBtn = document.getElementById('add-event-btn');
+
 const addCmtModalEl = document.getElementById('addCommentModal');
 const addCmtModal   = new bootstrap.Modal(addCmtModalEl);
 const addCmtForm    = document.getElementById('add-comment-form');
@@ -419,13 +456,6 @@ function openAddEventCommentModal(eventId, parentId = null) {
   addCmtModal.show();
   setTimeout(() => cmtBodyEl.focus(), 200);
 }
-
-// Global “Add Event” button = add a comment on the newest event? Better: do nothing or open a picker.
-// For now, just no-op or show a message. You can repurpose it later to “Add Note” etc.
-addEventBtn.addEventListener('click', () => {
-  msg.textContent = 'Pick an event’s “Comment” button to add a comment.';
-  setTimeout(() => msg.textContent = '', 2500);
-});
 
 // Submit with Ctrl/Cmd+Enter
 cmtBodyEl.addEventListener('keydown', (e) => {
@@ -464,54 +494,64 @@ addCmtForm.addEventListener('submit', async (e) => {
   }
 });
 
-// === Add Event (Note) Modal wiring ===
-const addEventBtnEl   = document.getElementById('add-event-btn');
-const addEventModalEl = document.getElementById('addEventModal');
-const addEventModal   = new bootstrap.Modal(addEventModalEl);
-const addEventForm    = document.getElementById('add-event-form');
-const eventTypeEl     = document.getElementById('event-type');
-const eventBodyEl     = document.getElementById('event-body');
-const addEventErrEl   = document.getElementById('add-event-error');
-const addEventSubmit  = document.getElementById('add-event-submit');
+// === Add Note Modal wiring ===
+const addNoteBtnEl   = document.getElementById('add-note-btn');
+const addNoteModalEl = document.getElementById('addNoteModal');
+const addNoteModal   = new bootstrap.Modal(addNoteModalEl);
+const addNoteForm    = document.getElementById('add-note-form');
+const noteBodyEl     = document.getElementById('note-body');
+const noteErrEl      = document.getElementById('add-note-error');
+const addNoteSubmit  = document.getElementById('add-note-submit');
 
-addEventBtnEl.addEventListener('click', () => {
-  addEventErrEl.classList.add('d-none');
-  addEventErrEl.textContent = '';
-  eventTypeEl.value = 'note.added';
-  eventBodyEl.value = '';
-  addEventModal.show();
-  setTimeout(() => eventBodyEl.focus(), 200);
+addNoteBtnEl.addEventListener('click', () => {
+  noteErrEl.classList.add('d-none');
+  noteErrEl.textContent = '';
+  noteBodyEl.value = '';
+  addNoteModal.show();
+  setTimeout(() => noteBodyEl.focus(), 200);
 });
 
-// Helper to make a short summary safely
-function summarize140(s) {
-  const oneLine = String(s || '').replace(/\s+/g, ' ').trim();
-  return oneLine.slice(0, 140);
-}
+addNoteForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = (noteBodyEl.value || '').trim();
+  if (!body) { noteBodyEl.focus(); return; }
 
-addEventForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const body = (eventBodyEl.value || '').trim();
-    if (!body) { eventBodyEl.focus(); return; }
-  
-    addEventSubmit.disabled = true;
-    try {
-      const { error } = await supabase.rpc('app_add_note', {
-        p_project_id: Number(projectId),
-        p_body: body,
-        p_client_req_id: crypto.randomUUID()   // idempotency
-      });
-      if (error) throw error;
-  
-      addEventModal.hide();
-      await loadEventsForType(getActiveTypeKey());
-    } catch (err) {
-      addEventErrEl.textContent = err?.message || 'Failed to add event.';
-      addEventErrEl.classList.remove('d-none');
-    } finally {
-      addEventSubmit.disabled = false;
-    }
-  });
+  addNoteSubmit.disabled = true;
+  try {
+    const { error } = await supabase.rpc('app_add_note', {
+      p_project_id: Number(projectId),
+      p_body: body,
+      p_client_req_id: crypto.randomUUID()
+    });
+    if (error) throw error;
+
+    addNoteModal.hide();
+    await loadEventsForType(getActiveTypeKey());
+  } catch (err) {
+    noteErrEl.textContent = err?.message || 'Failed to add note.';
+    noteErrEl.classList.remove('d-none');
+  } finally {
+    addNoteSubmit.disabled = false;
+  }
+});
+
+
+// === Add Event Modal wiring ===
+const addEstBtnEl   = document.getElementById('add-estimate-btn');
+const addEstModalEl = document.getElementById('addEstimateModal');
+const addEstModal   = new bootstrap.Modal(addEstModalEl);
+const addEstForm    = document.getElementById('add-estimate-form');
+const estBodyEl     = document.getElementById('estimate-body');
+const estErrEl      = document.getElementById('add-estimate-error');
+const addEstSubmit  = document.getElementById('add-estimate-submit');
+
+addEstBtnEl.addEventListener('click', () => {
+  estErrEl.classList.add('d-none');
+  estErrEl.textContent = '';
+  estBodyEl.value = '';
+  addEstModal.show();
+  setTimeout(() => noteBodyEl.focus(), 200);
+});
 
     // --- boot ---
     await loadProjectHeader();
