@@ -417,79 +417,96 @@
       await loadProjects();
     });
 
-    // Render table
-    function renderTable(rows, tier = 1, envelope = null) {
-      const wrapEl = wrap;
-      wrapEl.innerHTML = '';
-      if (!rows.length) {
-        wrapEl.innerHTML = '<div class="text-secondary">No rows.</div>';
-        return;
-      }
+    // key allows the data to match and label is what shows up on the screen
+      const COLUMNS = [
+      { key: 'id',             label: 'ID' },
+      { key: 'project_title',  label: 'Project' },
+      { key: 'year1value',     label: 'Y1',  isYear: true },
+      { key: 'year2value',     label: 'Y2',  isYear: true },
+      { key: 'year3value',     label: 'Y3',  isYear: true },
+      { key: 'year4value',     label: 'Y4',  isYear: true },
+      { key: 'year5value',     label: 'Y5',  isYear: true },
+      ];
 
-      const headers = ['id','project_title','year1value','year2value','year3value','year4value','year5value'];
-
-      const table = document.createElement('table');
-      table.className = 'table table-sm table-striped table-hover align-middle';
-
-      const thead = document.createElement('thead');
-      const trh = document.createElement('tr');
-      headers.forEach(h => {
-        const th = document.createElement('th');
-        th.textContent = h;
-        trh.appendChild(th);
-      });
-      thead.appendChild(trh);
-      table.appendChild(thead);
-      let elementTotal = 0;
-      const tbody = document.createElement('tbody');
-
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.dataset.id = r.id;
-
-        const mult = getMultiplier(r, tier);
-
-        headers.forEach(h => {
-          const td = document.createElement('td');
-     
-          if (h.startsWith('year') && h.endsWith('value')) {
-            const scaledStr   = scaled(r[h], mult); 
-            const inflatedStr = inflate(scaledStr, r.estimate_year, r.award_year); 
-            td.textContent = inflatedStr;
-    
-            const n = Number(inflatedStr);
-            if (Number.isFinite(n)) elementTotal += n; // only add valid numbers
-          } else {
-            td.textContent = r[h] ?? '';
-          }
-          tr.appendChild(td);
+      function renderTable(rows, tier = 1, envelope = null) {
+        const wrapEl = wrap;
+        wrapEl.innerHTML = '';
+        if (!rows.length) {
+          wrapEl.innerHTML = '<div class="text-secondary">No rows.</div>';
+          return;
+        }
+      
+        const table = document.createElement('table');
+        table.className = 'table table-sm table-striped table-hover align-middle';
+      
+        // THEAD
+        const thead = document.createElement('thead');
+        const trh = document.createElement('tr');
+        COLUMNS.forEach(col => {
+          const th = document.createElement('th');
+          th.textContent = col.label;           // show the friendly label
+          trh.appendChild(th);
         });
-
-        tbody.appendChild(tr);
-      });
-
-      table.appendChild(tbody);
-
+        thead.appendChild(trh);
+        table.appendChild(thead);
+      
+        // TBODY
+        const tbody = document.createElement('tbody');
+        let elementTotal = 0;
+      
+        rows.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.dataset.id = r.id;
+      
+          const mult = getMultiplier(r, tier);
+      
+          COLUMNS.forEach(col => {
+            const td = document.createElement('td');
+      
+            if (col.isYear) {
+              const scaledStr   = scaled(r[col.key], mult);
+              const inflatedStr = inflate(scaledStr, r.estimate_year, r.award_year);
+              td.textContent = inflatedStr;
+      
+              const n = Number(inflatedStr);
+              if (Number.isFinite(n)) elementTotal += n;
+            } else {
+              td.textContent = r[col.key] ?? '';
+            }
+      
+            tr.appendChild(td);
+          });
+      
+          tbody.appendChild(tr);
+        });
+      
+        table.appendChild(tbody);
+      
+        // TFOOT (Total)
+        const firstYearIdx = COLUMNS.findIndex(c => c.isYear);
+        const labelSpan = firstYearIdx > 0 ? firstYearIdx : Math.min(2, COLUMNS.length); // fallback
+      
         const tfoot = document.createElement('tfoot');
         const trf = document.createElement('tr');
+      
         const thLabel = document.createElement('th');
-        thLabel.colSpan = 2; // label spans first two columns
+        thLabel.colSpan = labelSpan;
         thLabel.className = 'text-end';
         thLabel.textContent = 'Total:';
         trf.appendChild(thLabel);
-
+      
         const thTotal = document.createElement('th');
-        thTotal.colSpan = headers.length - 2;
+        thTotal.colSpan = COLUMNS.length - labelSpan;
         thTotal.textContent = Number(elementTotal).toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          });
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
         trf.appendChild(thTotal);
-
+      
         tfoot.appendChild(trf);
         table.appendChild(tfoot);
-
-      wrapEl.appendChild(table);
+      
+        wrapEl.appendChild(table);
 
       // --- Comparison panel (below the table) ---
 const panel = document.createElement('div');
