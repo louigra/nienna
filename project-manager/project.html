@@ -241,7 +241,7 @@
   </div>
 
 
-    <!-- Add/Edit Project Modal (IDs preserved) -->
+    <!-- Add/Edit Project Modal  -->
     <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content bg-dark text-light">
@@ -323,7 +323,7 @@
   <script type="module">
     import { supabase, requireAuth } from "../auth-guard.js";
     import { EVENT_TYPES } from "./events.config.js";
-    import {updateRow} from "../configurator/modules/db.js"
+    import { updateRow, deleteRow } from "../configurator/modules/db.js"
 
     const msg = document.getElementById('page-msg');
     const titleEl = document.getElementById('proj-header-title');
@@ -454,7 +454,18 @@ document.getElementById('projectForm')?.addEventListener('submit', async (e) => 
   }
 });
 
-
+document.getElementById('delete-btn')?.addEventListener('click', async () => {
+  try {
+    await deleteRow('projects_live', 'id', projectId);
+    // close modal first
+    bootstrap.Modal.getInstance(document.getElementById('projectModal'))?.hide();
+    // redirect
+    location.replace('./managerDash.html');
+  } catch (err) {
+    console.error(err);
+    msg.textContent = err.message || 'Delete failed.';
+  }
+});
 
 
     // --- build left rail from config ---

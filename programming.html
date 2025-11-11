@@ -730,7 +730,7 @@ wrapEl.appendChild(panel);
     
         fillSelect(categorySelect, cats, {
         value: v => String(v),
-        display: v => String(v)
+        display: v => String(v).padStart(2,'0')
         });
     
         fillSelect(elementSelect, elems, {
