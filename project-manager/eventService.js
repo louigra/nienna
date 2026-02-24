@@ -67,7 +67,23 @@ export async function loadEvents({ projectId, typeKey }) {
     commentsByEvent[c.event_id].push(c);
   }
 
-  return events.map(e => ({ ...e, event_comments: commentsByEvent[e.id] || [] }));
+  const commentAuthorIds = comments.map(c => c.author_id).filter(Boolean);
+  const actorIds = [...new Set([...events.map(e => e.actor_id), ...commentAuthorIds].filter(Boolean))];
+  const { rows: profiles } = await db.query('profiles', {
+    select: 'user_id, display_name',
+    filters: [{ key: 'user_id', op: 'in', value: actorIds }],
+    pageSize: null,
+  });
+  const nameById = Object.fromEntries(profiles.map(p => [p.user_id, p.display_name]));
+
+  return events.map(e => ({
+    ...e,
+    actor_name: nameById[e.actor_id] || null,
+    event_comments: (commentsByEvent[e.id] || []).map(c => ({
+      ...c,
+      author_name: nameById[c.author_id] || null,
+    })),
+  }));
 }
 
 // ---------- app_add_note ----------
