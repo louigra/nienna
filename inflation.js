@@ -1,5 +1,5 @@
 // inflation.js
-import { supabase } from "./auth-guard.js";
+import { db } from "./db/index.js";
 
 let inflatorsData = null;
 let inflatorsMap = null;
@@ -28,12 +28,14 @@ export async function getInflatorsOnce() {
 
   inflatorsPromise = (async () => {
     
-    const { data, error } = await supabase
-      .from("inflators")
-      .select("year, inflation_index")
-      .order("year", { ascending: true });
-
-    if (error) {
+    let rows;
+    try {
+      ({ rows } = await db.query("inflators", {
+        select: "year, inflation_index",
+        order: { col: "year", dir: "asc" },
+        pageSize: null,
+      }));
+    } catch (error) {
       console.error("[Inflation] load error:", error);
       inflatorsData = [];
       inflatorsMap = new Map();
@@ -41,7 +43,7 @@ export async function getInflatorsOnce() {
       return inflatorsData;
     }
 
-    const normalized = normalizeInflators(data || []);
+    const normalized = normalizeInflators(rows || []);
     inflatorsData = normalized;
     inflatorsMap = buildInflatorMap(normalized);
     

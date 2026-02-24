@@ -145,7 +145,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0"></script> 
 
   <script type="module">
-    import { supabase, requireAuth } from "./auth-guard.js";
+    import { requireAuth } from "./auth-guard.js";
+    import { db } from "./db/index.js";
   
     const appMsg = document.getElementById('app-msg');
   
@@ -181,13 +182,14 @@
   
     // Build filter selects
     async function getDistinct(table, column) {
-      const { data, error } = await supabase
-        .from(table)
-        .select(column, { distinct: true })
-        .not(column, 'is', null)
-        .order(column, { ascending: true });
-      if (error) throw error;
-      return (data || []).map(r => r[column]).filter(v => v != null);
+      const { rows } = await db.query(table, {
+        select: column,
+        filters: [{ op: 'notNull', key: column }],
+        order: { col: column, dir: 'asc' },
+        pageSize: null,
+      });
+      // deduplicate in JS (equivalent to SELECT DISTINCT)
+      return [...new Set((rows || []).map(r => r[column]).filter(v => v != null))];
     }
     function fillSelect(selectEl, values, { display = v => String(v), value = v => String(v) } = {}) {
       selectEl.innerHTML = '<option value="">All</option>';
@@ -225,16 +227,17 @@
       await requireAuth();
   
       // 1) ACEP totals
-      const { data: rows, error: rowsErr } = await supabase
-      .from('acep_project_totals')
-      .select('agency, cip, category, element, total_5yr_sum')
-      .order('agency', { ascending: true })
-      .order('cip', { ascending: true })
-      .order('category', { ascending: true })
-      .order('element', { ascending: true })
-      .eq('cip', 9);
-
-      if (rowsErr) throw rowsErr;
+      const { rows } = await db.query('acep_project_totals', {
+        select: 'agency, cip, category, element, total_5yr_sum',
+        filters: [{ key: 'cip', op: 'eq', value: 9 }],
+        order: [
+          { col: 'agency', dir: 'asc' },
+          { col: 'cip',    dir: 'asc' },
+          { col: 'category', dir: 'asc' },
+          { col: 'element',  dir: 'asc' },
+        ],
+        pageSize: null,
+      });
 
       const labels = (rows || []).map(r => {
       const cat = String(r.category).padStart(2, '0');
@@ -247,10 +250,15 @@
       // get sum of values
       const sumValues = values.reduce((a, b) => a + b, 0);
 
-      const { data: envelopeSum, error: envelopeErr } =
-      await supabase.rpc('app_sum_envelope', { p_tier: 1, p_cip: 9 });
-
-      if (envelopeErr) throw envelopeErr;
+      const { rows: envelopeRows } = await db.query('tier_acep_envelope', {
+        select: 'acep_envelope',
+        filters: [
+          { key: 'tier', op: 'eq', value: 1 },
+          { key: 'cip', op: 'eq', value: 9 },
+        ],
+        pageSize: null,
+      });
+      const envelopeSum = envelopeRows.reduce((sum, r) => sum + (Number(r.acep_envelope) || 0), 0);
 
       labels.push('Unprogrammed Envelope');
       values.push(Number(envelopeSum - sumValues) || 0);

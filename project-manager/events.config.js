@@ -12,6 +12,8 @@ export const EVENT_TYPES = [
       key: 'estimates',
       label: 'Estimates',
       icon: 'calculator',
+      createLabel: 'Estimate',
+      modalId: 'addEstimateModal',
       orderBy: 'created_at',
       listFields: ['version','status','created_at'],
       eventTypes: ['estimate.added','estimate.revised','estimate.approved']
@@ -20,6 +22,8 @@ export const EVENT_TYPES = [
       key: 'notes',
       label: 'Notes',
       icon: 'sticky',
+      createLabel: 'Note',
+      modalId: 'addNoteModal',
       orderBy: 'created_at',
       listFields: ['body','author_id','created_at'],
       eventTypes: ['note.added','note.edited','note.deleted']

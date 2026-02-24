@@ -238,7 +238,8 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 
   <script type="module">
-    import { supabase, requireAuth } from "./auth-guard.js";
+    import { requireAuth } from "./auth-guard.js";
+    import { db } from "./db/index.js";
     import { getInflatorsOnce, getInflatorMap, inflate } from "./inflation.js";
 
     const wrap   = document.getElementById('table-wrap');
@@ -320,18 +321,18 @@
         return null;
       }
 
-      const { data, error } = await supabase
-        .from('tier_acep_envelope')
-        .select('acep_envelope')
-        .eq('agency', agencyVal)          
-        .eq('tier', tierVal)
-        .eq('category', catVal)
-        .eq('element', elemVal)
-        .eq('cip', cipVal)        
-        .maybeSingle();                   // returns data=null when no row, no throw
-
-      if (error) throw error;
-      return data?.acep_envelope ?? null;
+      const { rows } = await db.query('tier_acep_envelope', {
+        select: 'acep_envelope',
+        filters: [
+          { key: 'agency',   op: 'eq', value: agencyVal },
+          { key: 'tier',     op: 'eq', value: tierVal },
+          { key: 'category', op: 'eq', value: catVal },
+          { key: 'element',  op: 'eq', value: elemVal },
+          { key: 'cip',      op: 'eq', value: cipVal },
+        ],
+        pageSize: 1,
+      });
+      return rows[0]?.acep_envelope ?? null;
     }
 
     async function refreshEnvelopeAndRender() {
@@ -365,34 +366,25 @@
       const filters = getFilters();
 
 
-      let query = supabase
-        .from('programming_projects')
-        .select(`
-          id,
-          project_title,
-          year1value, year2value, year3value, year4value, year5value,
-          agency, cip, category, element,
-          tier1multiplier, tier2multiplier, tier3multiplier,
-          estimate_year, award_year
-        `)
-        .order('id', { ascending: true });
+      const filterArr = [];
+      if (filters.agency)   filterArr.push({ key: 'agency',   op: 'eq', value: filters.agency });
+      if (filters.category) filterArr.push({ key: 'category', op: 'eq', value: Number(filters.category) });
+      if (filters.cip)      filterArr.push({ key: 'cip',      op: 'eq', value: Number(filters.cip) });
+      if (filters.element)  filterArr.push({ key: 'element',  op: 'eq', value: filters.element });
 
-      // Apply filters: cip/category = numbers, element = text
-      if (filters.agency)   query = query.eq('agency', filters.agency)
-      if (filters.category) query = query.eq('category', Number(filters.category));
-      if (filters.cip)      query = query.eq('cip', Number(filters.cip));
-      if (filters.element)  query = query.eq('element', filters.element);
-
-      const { data, error } = await query;
-
-      if (error) { 
-        appMsg.textContent = error.message; 
-        return; 
+      try {
+        const { rows } = await db.query('programming_projects', {
+          select: 'id, project_title, year1value, year2value, year3value, year4value, year5value, agency, cip, category, element, tier1multiplier, tier2multiplier, tier3multiplier, estimate_year, award_year',
+          filters: filterArr,
+          order: { col: 'id', dir: 'asc' },
+          pageSize: null,
+        });
+        currentRows = rows;
+        appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
+        refreshEnvelopeAndRender();
+      } catch (err) {
+        appMsg.textContent = err.message;
       }
-
-      currentRows = data || [];
-      appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
-      refreshEnvelopeAndRender();
     }
 
     const tierSelect = document.getElementById('tier-select');
@@ -644,21 +636,20 @@ wrapEl.appendChild(panel);
       };
 
       const id = idInput.value ? Number(idInput.value) : null;
-      let error;
 
       if (!payload.project_title) {
         titleEl.focus();
         return;
       }
 
-      if (id) {
-        ({ error } = await supabase.from('programming_projects').update(payload).eq('id', id));
-      } else {
-        ({ error } = await supabase.from('programming_projects').insert([payload]));
-      }
-
-      if (error) {
-        appMsg.textContent = error.message;
+      try {
+        if (id) {
+          await db.update('programming_projects', 'id', id, payload);
+        } else {
+          await db.insert('programming_projects', payload);
+        }
+      } catch (err) {
+        appMsg.textContent = err.message;
         return;
       }
 
@@ -671,8 +662,12 @@ wrapEl.appendChild(panel);
       if (!id) return;
       if (!confirm('Delete this project?')) return;
 
-      const { error } = await supabase.from('programming_projects').delete().eq('id', id);
-      if (error) { appMsg.textContent = error.message; return; }
+      try {
+        await db.delete('programming_projects', 'id', id);
+      } catch (err) {
+        appMsg.textContent = err.message;
+        return;
+      }
 
       modal.hide();
       await loadProjects();
@@ -687,15 +682,13 @@ wrapEl.appendChild(panel);
     // --- Distinct helper & filter builder (ACEPs) ---
 
     async function getDistinct(table, column) {
-        const { data, error } = await supabase
-        .from(table)
-        .select(column, { distinct: true })
-        .not(column, 'is', null)
-        .order(column, { ascending: true });
-    
-        if (error) throw error;
-        return (data || []).map(r => r[column]).filter(v => v !== null && v !== undefined);
-        console.log(data)
+      const { rows } = await db.query(table, {
+        select: column,
+        filters: [{ op: 'notNull', key: column }],
+        order: { col: column, dir: 'asc' },
+        pageSize: null,
+      });
+      return [...new Set((rows || []).map(r => r[column]).filter(v => v != null))];
     }
     
     function fillSelect(selectEl, values, { display = v => String(v), value = v => String(v) } = {}) {

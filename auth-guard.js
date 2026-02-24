@@ -15,3 +15,7 @@ export async function requireAuth() {
   }
   return session;
 }
+
+export async function signOut() {
+  await supabase.auth.signOut();
+}

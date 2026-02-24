@@ -132,7 +132,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script type="module">
-    import { supabase, requireAuth } from "./auth-guard.js";
+    import { requireAuth, signOut } from "./auth-guard.js";
 
     const status = document.getElementById('status');
     const userInfo = document.getElementById('user-info');
@@ -148,7 +148,7 @@
     }
 
     signoutBtn.onclick = async () => {
-      await supabase.auth.signOut();
+      await signOut();
       window.location.href = "index.html";
     };
   </script>

@@ -107,13 +107,13 @@
     
       <!-- Right: Add Events card -->
       <div class="col-12 col-lg-3">
-        <div class="toolbar-card h-100 p-3 d-flex align-items-center justify-content-between">
-          <button id="add-note-btn" class="btn btn-brand">
-            <i class="bi bi-sticky me-1"></i> Note
-          </button>
-          <button id="add-estimate-btn" class="btn btn-brand">
-            <i class="bi bi-calculator me-1"></i> Estimate
-          </button>
+        <div class="toolbar-card h-100 p-3 d-flex align-items-center">
+          <div class="dropdown">
+            <button class="btn btn-brand dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-plus-lg me-1"></i> Add
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark" id="add-event-dropdown"></ul>
+          </div>
         </div>
       </div>
     </div>
@@ -202,43 +202,85 @@
 
       <!-- Add Estimate Modal -->
 <div class="modal fade" id="addEstimateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content bg-dark text-light">
-        <div class="modal-header">
-          <h5 class="modal-title">Add Estimate</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-  
-        <form id="add-estimate-form">
-          <div class="modal-body">
-            <div class="mb-3">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-dark text-light">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Estimate</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form id="add-estimate-form">
+        <div class="modal-body">
+
+          <!-- Header fields -->
+          <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
               <label for="estimate-type" class="form-label">Type</label>
-              <select id="estimate-type" class="form-select">
-                <option value="profile" selected>Profile</option>
-                <option value="ipb" selected>Initial Baseline</option>
-                <option value="upb" selected>Updated Baseline</option>
-                <option value="rta" selected>RTA</option>
+              <select id="estimate-type" class="form-select" required>
+                <option value="">— select —</option>
+                <option value="profile">Profile</option>
+                <option value="ipb">Initial Baseline</option>
+                <option value="upb">Updated Baseline</option>
+                <option value="rta">RTA</option>
               </select>
             </div>
-            <div class="mb-3">
-              <label for="estimate-body" class="form-label">Estimate Tasks</label>
-              <textarea id="estimate-body" class="form-control" rows="5"
-                placeholder="What happened?" required></textarea>
-              <div class="form-text text-secondary">A summary will be generated from the first 140 characters.</div>
+            <div class="col-6 col-md-3">
+              <label for="estimate-status" class="form-label">Status</label>
+              <select id="estimate-status" class="form-select">
+                <option value="draft" selected>Draft</option>
+                <option value="active">Active</option>
+                <option value="approved">Approved</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
-            <div class="small text-danger d-none" id="add-estimate-error"></div>
+            <div class="col-6 col-md-3">
+              <label for="estimate-date" class="form-label">Estimate Date</label>
+              <input id="estimate-date" type="date" class="form-control" />
+            </div>
+            <div class="col-6 col-md-3">
+              <label for="estimate-award-year" class="form-label">Award Year</label>
+              <input id="estimate-award-year" type="number" class="form-control" min="2000" max="2100" placeholder="e.g. 2027" />
+            </div>
           </div>
-  
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button id="add-estimate-submit" type="submit" class="btn btn-brand">
-              <i class="bi bi-plus-circle"></i> Submit
+
+          <!-- Task table -->
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold small text-secondary text-uppercase ls-1">Tasks</span>
+            <button type="button" id="add-task-row-btn" class="btn btn-sm btn-outline-light">
+              <i class="bi bi-plus"></i> Add Task
             </button>
           </div>
-        </form>
-      </div>
+
+          <table class="table table-dark table-sm mb-1" id="est-task-table">
+            <thead>
+              <tr>
+                <th style="width:56px"></th>
+                <th style="width:90px">Code</th>
+                <th>Description</th>
+                <th style="width:130px" class="text-end">Amount</th>
+                <th style="width:36px"></th>
+              </tr>
+            </thead>
+            <tbody id="est-task-tbody"></tbody>
+          </table>
+
+          <div class="text-end small text-secondary">
+            Total: <strong id="est-running-total" class="text-light">$0.00</strong>
+          </div>
+
+          <div class="small text-danger d-none mt-2" id="add-estimate-error"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button id="add-estimate-submit" type="submit" class="btn btn-brand">
+            <i class="bi bi-plus-circle"></i> Submit Estimate
+          </button>
+        </div>
+      </form>
     </div>
   </div>
+</div>
 
 
     <!-- Add/Edit Project Modal  -->
@@ -321,9 +363,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script type="module">
-    import { supabase, requireAuth } from "../auth-guard.js";
+    import { requireAuth } from "../auth-guard.js";
     import { EVENT_TYPES } from "./events.config.js";
     import { updateRow, deleteRow } from "../configurator/modules/db.js"
+    import { loadEvents, addNote, addEventComment, addEstimate, loadEstimateTasks } from "./eventService.js";
+    import { db } from "../db/index.js";
 
     const msg = document.getElementById('page-msg');
     const titleEl = document.getElementById('proj-header-title');
@@ -333,8 +377,6 @@
     const projIdEl = document.getElementById('proj-header-projid');
     const listEl = document.getElementById('event-types-list');
     const content = document.getElementById('content-wrap');
-    const addNoteBtn = document.getElementById('add-note-btn');
-    const addEstimateBtn = document.getElementById('add-estimate-btn')
 
     const projectId = new URLSearchParams(location.search).get('project_id');
 
@@ -350,17 +392,13 @@
 // --- load project header + prefill modal ---
 async function loadProjectHeader() {
   msg.textContent = 'Loading project…';
-  const { data, error } = await supabase
-    .from('projects_live')
-    .select(`
-      id, project_title, agency, cip, category, element, project_acep,
-      psr_key, planning_number_prefix, planning_number_suffix,
-      project_id, pse_number
-    `)
-    .eq('id', projectId)
-    .single();
+  const { rows: [data] } = await db.query('projects_live', {
+    select: 'id, project_title, agency, cip, category, element, project_acep, psr_key, planning_number_prefix, planning_number_suffix, project_id, pse_number',
+    filters: [{ key: 'id', op: 'eq', value: projectId }],
+    pageSize: 1,
+  });
 
-  if (error) { msg.textContent = error.message; return; }
+  if (!data) { msg.textContent = 'Project not found.'; return; }
 
   // Header fill
   titleEl.textContent = data.project_title || '—';
@@ -519,36 +557,74 @@ const EVENT_TYPE_ALIASES = {
   
   async function loadEventsForType(typeKey) {
     msg.textContent = 'Loading…';
-  
-    // Base select pulls events AND their comments via FK
-    const baseSelect = `
-      id, project_id, actor_id, event_type, subject_table, subject_id, summary, payload, created_at,
-      event_comments:event_comments!event_comments_event_id_fkey (
-        id, event_id, author_id, body, parent_comment_id, created_at
-      )
-    `;
-  
-    let q = supabase
-      .from('events')
-      .select(baseSelect)
-      .eq('project_id', projectId)
-      .neq('event_type', 'comment.added')
-      .order('created_at', { ascending: false });
-  
-    if (typeKey !== 'feed') {
-      const def = EVENT_TYPES.find(t => t.key === typeKey);
-      if (!def) { content.innerHTML = '<div class="text-danger">Unknown tab.</div>'; msg.textContent=''; return; }
-      const types = Array.isArray(def.eventTypes) && def.eventTypes.length ? def.eventTypes : [typeKey];
-      q = q.in('event_type', types);
+    try {
+      const events = await loadEvents({ projectId, typeKey });
+      renderEventsWithComments(events);
+    } catch (err) {
+      content.innerHTML = `<div class="text-danger">${err.message}</div>`;
     }
-  
-    const { data, error } = await q;
-    if (error) { content.innerHTML = `<div class="text-danger">${error.message}</div>`; msg.textContent=''; return; }
-  
-    renderEventsWithComments(data || []);
     msg.textContent = '';
   }
   
+  // ---------- Per-type card body renderers ----------
+  const formatCurrency = amt =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amt || 0);
+
+  function noteBody(ev) {
+    const text = ev.payload?.body_preview || ev.summary || '';
+    return text ? `<div class="small text-light">${escapeHtml(text)}</div>` : '';
+  }
+
+  function estimateBody(ev) {
+    const p = ev.payload || {};
+    return `
+      <div class="small d-flex flex-wrap gap-3 text-light mt-1">
+        <span><span class="text-secondary">Type</span> ${escapeHtml(p.estimate_type || '—')}</span>
+        <span><span class="text-secondary">Status</span> ${escapeHtml(p.status || '—')}</span>
+        <span><span class="text-secondary">Date</span> ${escapeHtml(p.estimate_date ? String(p.estimate_date) : '—')}</span>
+        ${p.estimate_award_year ? `<span><span class="text-secondary">Award</span> ${p.estimate_award_year}</span>` : ''}
+        <span><span class="text-secondary">Total</span> ${formatCurrency(p.total_amount)}</span>
+      </div>
+      <div class="mt-2">
+        <button class="btn btn-sm btn-outline-secondary est-tasks-toggle"
+                data-estimate-id="${ev.subject_id}" data-loaded="false">
+          <i class="bi bi-list-task me-1"></i>Show tasks
+        </button>
+        <div class="est-tasks-panel mt-2 d-none"></div>
+      </div>`;
+  }
+
+  function renderTaskTable(tasks) {
+    if (!tasks.length) return '<div class="small text-secondary">No tasks.</div>';
+    const rows = tasks.map(t => `
+      <tr>
+        <td class="text-secondary">${escapeHtml(t.code || '')}</td>
+        <td>${escapeHtml(t.description || '')}</td>
+        <td class="text-end">${formatCurrency(t.amount)}</td>
+      </tr>`).join('');
+    return `<table class="table table-dark table-sm mb-0" style="font-size:.8rem">
+      <thead><tr>
+        <th style="width:80px">Code</th>
+        <th>Description</th>
+        <th class="text-end" style="width:110px">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  function defaultBody(ev) {
+    const summary = ev.summary || '';
+    const details = ev.payload?.body_preview || '';
+    return `
+      ${summary ? `<div class="small">${escapeHtml(summary)}</div>` : ''}
+      ${details && details !== summary ? `<div class="small text-secondary mt-1">${escapeHtml(details)}</div>` : ''}`;
+  }
+
+  const eventBodyRenderers = {
+    'note.added':     noteBody,
+    'estimate.added': estimateBody,
+  };
+
   // ---------- Renderer: event cards with nested comment threads ----------
   function renderEventsWithComments(rows) {
     if (!rows.length) {
@@ -576,16 +652,43 @@ const EVENT_TYPE_ALIASES = {
         <small class="text-secondary">${new Date(ev.created_at).toLocaleString()}</small>
       `;
   
-      // summary/body
+      // summary/body — per-type renderer, falls back to defaultBody
       const body = document.createElement('div');
       body.className = 'mt-1 text-light';
-      const summary = ev.summary || '';
-      const details = ev.payload?.body_preview || '';
-      body.innerHTML = `
-        ${summary ? `<div class="small">${escapeHtml(summary)}</div>` : ''}
-        ${details ? `<div class="small text-secondary mt-1">${escapeHtml(details)}</div>` : ''}
-      `;
-  
+      const renderBody = eventBodyRenderers[ev.event_type] ?? defaultBody;
+      body.innerHTML = renderBody(ev);
+
+      // estimate task toggle
+      if (ev.event_type === 'estimate.added') {
+        const toggleBtn = body.querySelector('.est-tasks-toggle');
+        const panel     = body.querySelector('.est-tasks-panel');
+        if (toggleBtn && panel) {
+          toggleBtn.addEventListener('click', async () => {
+            const isOpen = !panel.classList.contains('d-none');
+            if (isOpen) {
+              panel.classList.add('d-none');
+              toggleBtn.innerHTML = '<i class="bi bi-list-task me-1"></i>Show tasks';
+              return;
+            }
+            if (toggleBtn.dataset.loaded === 'false') {
+              toggleBtn.disabled = true;
+              toggleBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading…';
+              try {
+                const tasks = await loadEstimateTasks(Number(toggleBtn.dataset.estimateId));
+                panel.innerHTML = renderTaskTable(tasks);
+                toggleBtn.dataset.loaded = 'true';
+              } catch {
+                panel.innerHTML = '<div class="small text-danger">Failed to load tasks.</div>';
+              } finally {
+                toggleBtn.disabled = false;
+              }
+            }
+            panel.classList.remove('d-none');
+            toggleBtn.innerHTML = '<i class="bi bi-list-task me-1"></i>Hide tasks';
+          });
+        }
+      }
+
       // actions (Add comment)
       const actions = document.createElement('div');
       actions.className = 'mt-2';
@@ -725,13 +828,12 @@ addCmtForm.addEventListener('submit', async (e) => {
     const clientReqId = crypto.randomUUID();
     const parentId = parentIdEl.value ? Number(parentIdEl.value) : null;
 
-    const { data, error } = await supabase.rpc('app_add_event_comment', {
-      p_event_id: currentTargetEventId,
-      p_body: body,
-      p_parent_comment_id: parentId,
-      p_client_req_id: clientReqId
+    await addEventComment({
+      eventId: currentTargetEventId,
+      body,
+      parentCommentId: parentId,
+      clientReqId,
     });
-    if (error) throw error;
 
     addCmtModal.hide();
     await loadEventsForType(getActiveTypeKey());
@@ -744,7 +846,6 @@ addCmtForm.addEventListener('submit', async (e) => {
 });
 
 // === Add Note Modal wiring ===
-const addNoteBtnEl   = document.getElementById('add-note-btn');
 const addNoteModalEl = document.getElementById('addNoteModal');
 const addNoteModal   = new bootstrap.Modal(addNoteModalEl);
 const addNoteForm    = document.getElementById('add-note-form');
@@ -752,11 +853,11 @@ const noteBodyEl     = document.getElementById('note-body');
 const noteErrEl      = document.getElementById('add-note-error');
 const addNoteSubmit  = document.getElementById('add-note-submit');
 
-addNoteBtnEl.addEventListener('click', () => {
+// Reset form every time the modal opens (works regardless of what triggered it)
+addNoteModalEl.addEventListener('show.bs.modal', () => {
   noteErrEl.classList.add('d-none');
   noteErrEl.textContent = '';
   noteBodyEl.value = '';
-  addNoteModal.show();
   setTimeout(() => noteBodyEl.focus(), 200);
 });
 
@@ -767,12 +868,11 @@ addNoteForm.addEventListener('submit', async (e) => {
 
   addNoteSubmit.disabled = true;
   try {
-    const { error } = await supabase.rpc('app_add_note', {
-      p_project_id: Number(projectId),
-      p_body: body,
-      p_client_req_id: crypto.randomUUID()
+    await addNote({
+      projectId: Number(projectId),
+      body,
+      clientReqId: crypto.randomUUID(),
     });
-    if (error) throw error;
 
     addNoteModal.hide();
     await loadEventsForType(getActiveTypeKey());
@@ -785,26 +885,156 @@ addNoteForm.addEventListener('submit', async (e) => {
 });
 
 
-// === Add Event Modal wiring ===
-const addEstBtnEl   = document.getElementById('add-estimate-btn');
-const addEstModalEl = document.getElementById('addEstimateModal');
-const addEstModal   = new bootstrap.Modal(addEstModalEl);
-const addEstForm    = document.getElementById('add-estimate-form');
-const estBodyEl     = document.getElementById('estimate-body');
-const estErrEl      = document.getElementById('add-estimate-error');
-const addEstSubmit  = document.getElementById('add-estimate-submit');
+// === Add Estimate Modal wiring ===
+const addEstModalEl  = document.getElementById('addEstimateModal');
+const addEstModal    = new bootstrap.Modal(addEstModalEl);
+const addEstForm     = document.getElementById('add-estimate-form');
+const estTypeEl      = document.getElementById('estimate-type');
+const estStatusEl    = document.getElementById('estimate-status');
+const estDateEl      = document.getElementById('estimate-date');
+const estAwardYearEl = document.getElementById('estimate-award-year');
+const estTaskTbody   = document.getElementById('est-task-tbody');
+const estRunningTotal= document.getElementById('est-running-total');
+const addTaskRowBtn  = document.getElementById('add-task-row-btn');
+const estErrEl       = document.getElementById('add-estimate-error');
+const addEstSubmit   = document.getElementById('add-estimate-submit');
 
-addEstBtnEl.addEventListener('click', () => {
+const codePattern = /^\d+[A-Za-z]$/i;
+
+function calcRunningTotal() {
+  let sum = 0;
+  for (const input of estTaskTbody.querySelectorAll('[data-field="amount"]')) {
+    sum += parseFloat(input.value) || 0;
+  }
+  estRunningTotal.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(sum);
+}
+
+function swapRows(rowA, rowB) {
+  const parent = rowA.parentNode;
+  const siblingA = rowA.nextSibling === rowB ? rowA : rowA.nextSibling;
+  parent.insertBefore(rowA, rowB.nextSibling);
+  parent.insertBefore(rowB, siblingA);
+}
+
+function addTaskRow() {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 me-1" data-dir="up" title="Move up">↑</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" data-dir="down" title="Move down">↓</button>
+    </td>
+    <td><input type="text" class="form-control form-control-sm" data-field="code" placeholder="3C" style="width:80px" /></td>
+    <td><input type="text" class="form-control form-control-sm" data-field="description" placeholder="Description" /></td>
+    <td><input type="number" class="form-control form-control-sm text-end" data-field="amount" placeholder="0.00" step="0.01" min="0" style="width:120px" /></td>
+    <td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" data-action="delete" title="Remove">✕</button></td>
+  `;
+
+  tr.querySelector('[data-dir="up"]').addEventListener('click', () => {
+    const prev = tr.previousElementSibling;
+    if (prev) swapRows(prev, tr);
+  });
+  tr.querySelector('[data-dir="down"]').addEventListener('click', () => {
+    const next = tr.nextElementSibling;
+    if (next) swapRows(tr, next);
+  });
+  tr.querySelector('[data-action="delete"]').addEventListener('click', () => {
+    tr.remove();
+    calcRunningTotal();
+  });
+  tr.querySelector('[data-field="amount"]').addEventListener('input', calcRunningTotal);
+
+  estTaskTbody.appendChild(tr);
+  tr.querySelector('[data-field="code"]').focus();
+}
+
+addTaskRowBtn.addEventListener('click', addTaskRow);
+
+// Reset on open
+addEstModalEl.addEventListener('show.bs.modal', () => {
+  estTypeEl.value = '';
+  estStatusEl.value = 'draft';
+  estDateEl.value = '';
+  estAwardYearEl.value = '';
+  estTaskTbody.innerHTML = '';
+  estRunningTotal.textContent = '$0.00';
   estErrEl.classList.add('d-none');
   estErrEl.textContent = '';
-  estBodyEl.value = '';
-  addEstModal.show();
-  setTimeout(() => estBodyEl.focus(), 200);
 });
+
+addEstForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const estimateType = estTypeEl.value;
+  if (!estimateType) { estTypeEl.focus(); return; }
+
+  // Collect and validate tasks
+  const taskRows = [...estTaskTbody.querySelectorAll('tr')];
+  const tasks = [];
+  for (const row of taskRows) {
+    const code        = row.querySelector('[data-field="code"]').value.trim();
+    const description = row.querySelector('[data-field="description"]').value.trim();
+    const amount      = parseFloat(row.querySelector('[data-field="amount"]').value) || 0;
+    if (!codePattern.test(code)) {
+      estErrEl.textContent = `Invalid code "${code}" — must be digit(s) followed by a single letter (e.g. 3C).`;
+      estErrEl.classList.remove('d-none');
+      row.querySelector('[data-field="code"]').focus();
+      return;
+    }
+    tasks.push({ code, description, amount });
+  }
+
+  estErrEl.classList.add('d-none');
+  addEstSubmit.disabled = true;
+  try {
+    await addEstimate({
+      projectId: Number(projectId),
+      estimateType,
+      status: estStatusEl.value || 'draft',
+      estimateDate: estDateEl.value || null,
+      estimateAwardYear: estAwardYearEl.value ? Number(estAwardYearEl.value) : null,
+      tasks,
+      clientReqId: crypto.randomUUID(),
+    });
+    addEstModal.hide();
+    await loadEventsForType(getActiveTypeKey());
+  } catch (err) {
+    estErrEl.textContent = err?.message || 'Failed to add estimate.';
+    estErrEl.classList.remove('d-none');
+  } finally {
+    addEstSubmit.disabled = false;
+  }
+});
+
+// === Config-driven Add dropdown ===
+// Modal registry: modalId → Bootstrap.Modal instance (lazy-initialized)
+const modalRegistry = {};
+
+function buildAddDropdown() {
+  const dropdownEl = document.getElementById('add-event-dropdown');
+  dropdownEl.innerHTML = '';
+  for (const t of EVENT_TYPES) {
+    if (!t.createLabel || !t.modalId) continue;
+
+    if (!modalRegistry[t.modalId]) {
+      const el = document.getElementById(t.modalId);
+      if (el) modalRegistry[t.modalId] = new bootstrap.Modal(el);
+    }
+
+    const li  = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dropdown-item';
+    btn.innerHTML = `<i class="bi bi-${t.icon} me-2"></i>${t.createLabel}`;
+    btn.addEventListener('click', () => modalRegistry[t.modalId]?.show());
+    li.appendChild(btn);
+    dropdownEl.appendChild(li);
+  }
+}
 
     // --- boot ---
     await loadProjectHeader();
     buildNav();
+    buildAddDropdown();
     setActiveLink();
     await loadEventsForType(getActiveTypeKey());
   </script>
