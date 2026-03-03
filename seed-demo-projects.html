@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nienna — Seed Demo Projects</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="./style.css" rel="stylesheet" />
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <i class="bi bi-database-fill-gear fs-4 text-warning"></i>
+          <div>
+            <h1 class="h4 mb-0">Seed Demo Projects</h1>
+            <div class="muted small">One-time data seeding utility</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-light" href="landingpage.html">
+            <i class="bi bi-grid-3x3-gap text-warning me-1"></i> Back to Tiles
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-12 col-lg-8">
+
+        <!-- Info card -->
+        <div class="panel p-4 mb-4">
+          <h5 class="mb-3"><i class="bi bi-info-circle me-2 text-info"></i>What this does</h5>
+          <ul class="text-secondary small mb-3">
+            <li>Inserts <strong>176 demo projects</strong> into <code>projects_live</code> — 2 per element across all 4 programs (CIP 7–10)</li>
+            <li>Creates one <strong>UPB estimate</strong> per project with 3C/3L/3Q task breakdown (60%/20%/20%)</li>
+            <li>Budgets range from <strong>$50M–$200M</strong>; estimates distributed: 25% over budget &gt;10%, 25% under &gt;5%, 25% equal, 25% within 1%</li>
+            <li>Award dates spread unevenly across <strong>2025–2028</strong></li>
+          </ul>
+          <div class="alert alert-warning small mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Run once only.</strong> Re-running duplicates all projects. After seeding, copy the output below into
+            <code>project-manager/demo-data.js</code> inside <code>OFFICIAL_BUDGETS</code> before the <code>_default</code> entry.
+          </div>
+        </div>
+
+        <!-- Control card -->
+        <div class="panel p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Run Seed</h5>
+            <span id="status-badge" class="badge bg-secondary">Ready</span>
+          </div>
+          <button id="run-btn" class="btn btn-warning">
+            <i class="bi bi-play-fill me-2"></i>Run Seed (176 projects)
+          </button>
+        </div>
+
+        <!-- Progress card -->
+        <div id="progress-area" class="panel p-4 mb-4 d-none">
+          <h5 class="mb-3">Progress</h5>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>Phase 1: Inserting projects</span>
+              <span id="p1-count">0 / 176</span>
+            </div>
+            <div class="progress" style="height:8px">
+              <div id="p1-bar" class="progress-bar" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>Phase 2: Inserting estimates</span>
+              <span id="p2-count">0 / 176</span>
+            </div>
+            <div class="progress" style="height:8px">
+              <div id="p2-bar" class="progress-bar bg-success" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>Phase 3: Inserting estimate tasks</span>
+              <span id="p3-count">0 / 528</span>
+            </div>
+            <div class="progress" style="height:8px">
+              <div id="p3-bar" class="progress-bar bg-info" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div id="phase-msg" class="small text-secondary mt-1"></div>
+        </div>
+
+        <!-- Output card -->
+        <div id="output-area" class="panel p-4 mb-4 d-none">
+          <h5 class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Seed complete!</h5>
+          <p class="small text-secondary mb-3">
+            Copy the block below and paste it into <code>project-manager/demo-data.js</code>
+            inside <code>OFFICIAL_BUDGETS</code>, right before the <code>_default</code> entry.
+          </p>
+          <textarea id="output-text" class="form-control font-monospace small" rows="20" readonly
+                    style="font-size:.72rem;resize:vertical"></textarea>
+          <button class="btn btn-outline-light btn-sm mt-2" id="copy-btn">
+            <i class="bi bi-clipboard me-1"></i>Copy to clipboard
+          </button>
+        </div>
+
+        <!-- Error card -->
+        <div id="error-area" class="d-none">
+          <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> <span id="error-msg"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+  <script type="module">
+    import { requireAuth }  from './auth-guard.js';
+    import { db }           from './db/index.js';
+    import { TAXONOMY }     from './healthofprogram/taxonomy.js';
+
+    // -------------------------------------------------------
+    // PRE-ASSIGNED DATA TABLES (44 slots = 22 elements × 2 projects)
+    // Slot order follows TAXONOMY[8] iteration: agency → category → element → project
+    // -------------------------------------------------------
+
+    // Budget in dollars per slot. Two consecutive values per element.
+    const SLOT_BUDGETS = [
+       50_000_000,  62_000_000,   // Cat 01 El 01  Subway Cars
+       75_000_000,  90_000_000,   // Cat 03 El 02  Bus Replacement
+      110_000_000, 130_000_000,   // Cat 04 El 04  Fare Collection
+      150_000_000, 165_000_000,   // Cat 04 El 07  Station Escalators/Elevators
+      180_000_000, 200_000_000,   // Cat 04 El 12  Station Work
+       85_000_000, 120_000_000,   // Cat 04 El 13  Accessibility
+       55_000_000,  95_000_000,   // Cat 05 El 02  Mainline Track Rehabilitation
+      140_000_000, 170_000_000,   // Cat 05 El 03  Mainline Switch Replacement
+       75_000_000, 115_000_000,   // Cat 06 El 05  Line Equipment
+      160_000_000, 190_000_000,   // Cat 07 El 03  Line Structure Rehabilitation
+       65_000_000, 100_000_000,   // Cat 08 El 03  Signal Modernization
+       80_000_000, 125_000_000,   // Cat 08 El 06  Communication Systems
+      145_000_000, 175_000_000,   // Cat 09 El 02  Substations
+       60_000_000,  88_000_000,   // Cat 09 El 04  Power Distribution
+      130_000_000, 155_000_000,   // Cat 10 El 04  Shops & Yards
+       70_000_000, 105_000_000,   // Cat 12 El 03  Depot Rehab & Reconstruction
+      185_000_000, 200_000_000,   // Cat 13 El 03  Service Vehicles
+       90_000_000, 135_000_000,   // Cat 16 El 02  Miscellaneous
+      110_000_000, 160_000_000,   // Cat 16 El 04  Management Information Systems
+       55_000_000,  80_000_000,   // Cat 16 El 05  Engineering Services
+      120_000_000, 170_000_000,   // Cat 16 El 07  Employee Facilities
+       95_000_000, 140_000_000,   // Cat S7 El 01  SIR: Miscellaneous
+    ];
+
+    // Award dates per slot — spread unevenly across 2025–2028.
+    // 2025: slots 0–5  (~12 projects/program in 2025)
+    // 2026: slots 6–27 (~44 projects/program in 2026)
+    // 2027: slots 28–41 (~28 projects/program in 2027)
+    // 2028: slots 42–43 (~4 projects/program in 2028)
+    const SLOT_AWARD_DATES = [
+      '2025-01-15', '2025-03-01',   // Cat 01 El 01
+      '2025-05-15', '2025-07-01',   // Cat 03 El 02
+      '2025-09-15', '2025-11-01',   // Cat 04 El 04
+      '2025-12-15', '2026-01-01',   // Cat 04 El 07
+      '2026-01-15', '2026-02-01',   // Cat 04 El 12
+      '2026-02-15', '2026-03-01',   // Cat 04 El 13
+      '2026-03-15', '2026-04-01',   // Cat 05 El 02
+      '2026-04-15', '2026-05-01',   // Cat 05 El 03
+      '2026-05-15', '2026-06-01',   // Cat 06 El 05
+      '2026-06-15', '2026-07-01',   // Cat 07 El 03
+      '2026-07-15', '2026-08-01',   // Cat 08 El 03
+      '2026-08-15', '2026-09-01',   // Cat 08 El 06
+      '2026-09-15', '2026-10-01',   // Cat 09 El 02
+      '2026-11-15', '2026-12-01',   // Cat 09 El 04
+      '2027-01-15', '2027-02-01',   // Cat 10 El 04
+      '2027-03-15', '2027-04-01',   // Cat 12 El 03
+      '2027-04-15', '2027-05-01',   // Cat 13 El 03
+      '2027-05-15', '2027-06-01',   // Cat 16 El 02
+      '2027-06-15', '2027-07-01',   // Cat 16 El 04
+      '2027-07-15', '2027-08-01',   // Cat 16 El 05
+      '2027-09-15', '2027-11-01',   // Cat 16 El 07
+      '2028-02-15', '2028-05-01',   // Cat S7 El 01
+    ];
+
+    // Estimate-to-budget multipliers by bucket (globalProjectIndex % 4)
+    const EST_MULTIPLIERS = [1.15, 0.93, 1.00, 1.008];
+    // Bucket 0: >10% over   Bucket 1: >5% under   Bucket 2: equal   Bucket 3: within 1%
+
+    // -------------------------------------------------------
+    // HELPERS
+    // -------------------------------------------------------
+
+    function addMonths(dateStr, n) {
+      const d = new Date(dateStr + 'T12:00:00Z');
+      d.setUTCMonth(d.getUTCMonth() + n);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function milestoneDates(awardDate) {
+      return {
+        'Design Start':          addMonths(awardDate, -24),
+        'Design Complete':       addMonths(awardDate, -6),
+        'Award':                 awardDate,
+        'Construction Start':    addMonths(awardDate, 3),
+        'Construction Complete': addMonths(awardDate, 30),
+      };
+    }
+
+    function chunkArray(arr, n) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+      return out;
+    }
+
+    // Inserts rows in parallel batches; returns all inserted rows in original order.
+    async function batchInsert(table, specs, batchSize, onProgress) {
+      const rows = [];
+      for (const batch of chunkArray(specs, batchSize)) {
+        const results = await Promise.all(batch.map(s => db.insert(table, s)));
+        rows.push(...results);
+        onProgress(rows.length, specs.length);
+      }
+      return rows;
+    }
+
+    // Builds the flat 44-slot array from TAXONOMY (program 8 as representative).
+    function buildSlots() {
+      const slots = [];
+      for (const agency of TAXONOMY[8].agencies) {
+        for (const cat of agency.categories) {
+          for (const el of cat.elements) {
+            for (let p = 0; p < 2; p++) {
+              slots.push({
+                agencyCode: agency.code,
+                catNum:     cat.num,
+                catLabel:   cat.label,
+                elNum:      el.num,
+                elLabel:    el.label,
+                projNum:    p + 1,
+              });
+            }
+          }
+        }
+      }
+      return slots; // 44 items
+    }
+
+    // Generates the JS source for one OFFICIAL_BUDGETS entry.
+    function demoEntrySource(projectId, budget, awardDate) {
+      const c3  = Math.round(budget * 0.60);
+      const c3l = Math.round(budget * 0.20);
+      const c3q = budget - c3 - c3l; // absorb rounding remainder
+      const ms  = milestoneDates(awardDate);
+      const yr  = Number(awardDate.slice(0, 4));
+      return (
+        `  '${projectId}': {\n` +
+        `    tasks: [\n` +
+        `      { code: '3C', description: 'Construction', amount: ${c3},  award_year: ${yr} },\n` +
+        `      { code: '3L', description: 'TA Labor',     amount: ${c3l}, award_year: ${yr} },\n` +
+        `      { code: '3Q', description: 'EFA',           amount: ${c3q}, award_year: ${yr} },\n` +
+        `    ],\n` +
+        `    total: ${budget},\n` +
+        `    milestone_dates: {\n` +
+        `      'Design Start':          '${ms['Design Start']}',\n` +
+        `      'Design Complete':       '${ms['Design Complete']}',\n` +
+        `      'Award':                 '${ms['Award']}',\n` +
+        `      'Construction Start':    '${ms['Construction Start']}',\n` +
+        `      'Construction Complete': '${ms['Construction Complete']}',\n` +
+        `    },\n` +
+        `  }`
+      );
+    }
+
+    // -------------------------------------------------------
+    // UI HELPERS
+    // -------------------------------------------------------
+
+    function setProgress(barId, countId, current, total) {
+      document.getElementById(barId).style.width  = `${(current / total * 100).toFixed(1)}%`;
+      document.getElementById(countId).textContent = `${current} / ${total}`;
+    }
+
+    function showError(msg) {
+      document.getElementById('error-msg').textContent  = msg;
+      document.getElementById('error-area').classList.remove('d-none');
+      document.getElementById('status-badge').textContent = 'Error';
+      document.getElementById('status-badge').className   = 'badge bg-danger';
+    }
+
+    // -------------------------------------------------------
+    // EVENT WIRING
+    // -------------------------------------------------------
+
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      const ta = document.getElementById('output-text');
+      ta.select();
+      navigator.clipboard.writeText(ta.value).catch(() => {});
+    });
+
+    document.getElementById('run-btn').addEventListener('click', async () => {
+      const runBtn = document.getElementById('run-btn');
+      runBtn.disabled = true;
+      document.getElementById('status-badge').textContent = 'Running…';
+      document.getElementById('status-badge').className   = 'badge bg-warning text-dark';
+      document.getElementById('progress-area').classList.remove('d-none');
+      document.getElementById('error-area').classList.add('d-none');
+
+      const phaseMsg = document.getElementById('phase-msg');
+
+      try {
+        const userId = await db.getUserId();
+        if (!userId) throw new Error('Not authenticated — please log in first.');
+
+        const SLOTS   = buildSlots();        // 44 element-project slots
+        const CIPS    = [7, 8, 9, 10];
+        const TOTAL   = SLOTS.length * CIPS.length; // 176
+        const TASKS_N = TOTAL * 3;                   // 528
+
+        // ---- Build all project specs + metadata (176 items) ----
+        const projectSpecs = [];
+        const meta         = []; // parallel: { budget, awardDate, estimateMultiplier }
+        let globalIdx = 0;
+
+        for (const cip of CIPS) {
+          for (let s = 0; s < SLOTS.length; s++, globalIdx++) {
+            const slot   = SLOTS[s];
+            const budget = SLOT_BUDGETS[s];
+            const award  = SLOT_AWARD_DATES[s];
+            const mult   = EST_MULTIPLIERS[globalIdx % 4];
+
+            projectSpecs.push({
+              project_title: `CIP ${cip} ${slot.agencyCode} ${slot.catLabel} - ${slot.elLabel} Proj ${slot.projNum}`,
+              cip,
+              agency:   slot.agencyCode,
+              category: slot.catNum,
+              element:  slot.elNum,
+            });
+
+            meta.push({ budget, award, mult });
+          }
+        }
+
+        // ---- Phase 1: Insert projects ----
+        phaseMsg.textContent = 'Inserting projects…';
+        const projectRows = await batchInsert(
+          'projects_live', projectSpecs, 10,
+          (n) => setProgress('p1-bar', 'p1-count', n, TOTAL),
+        );
+
+        // ---- Build estimate specs ----
+        const estimateSpecs = projectRows.map((proj, i) => {
+          const { award } = meta[i];
+          return {
+            project_id:          proj.id,
+            author_id:           userId,
+            status:              'active',
+            estimate_type:       'upb',
+            estimate_date:       addMonths(award, -12),
+            estimate_award_year: Number(award.slice(0, 4)),
+          };
+        });
+
+        // ---- Phase 2: Insert estimates ----
+        phaseMsg.textContent = 'Inserting estimates…';
+        const estimateRows = await batchInsert(
+          'estimates', estimateSpecs, 10,
+          (n) => setProgress('p2-bar', 'p2-count', n, TOTAL),
+        );
+
+        // ---- Build task specs (3 per estimate = 528 total) ----
+        const taskSpecs = estimateRows.flatMap((est, i) => {
+          const { budget, mult } = meta[i];
+          const total = Math.round(budget * mult);
+          const c3    = Math.round(total * 0.60);
+          const c3l   = Math.round(total * 0.20);
+          const c3q   = total - c3 - c3l;
+          return [
+            { estimate_id: est.id, sort_order: 1, code: '3C', description: 'Construction', amount: c3,  created_by: userId },
+            { estimate_id: est.id, sort_order: 2, code: '3L', description: 'TA Labor',     amount: c3l, created_by: userId },
+            { estimate_id: est.id, sort_order: 3, code: '3Q', description: 'EFA',           amount: c3q, created_by: userId },
+          ];
+        });
+
+        // ---- Phase 3: Insert tasks ----
+        phaseMsg.textContent = 'Inserting estimate tasks…';
+        await batchInsert(
+          'estimate_tasks', taskSpecs, 15,
+          (n) => setProgress('p3-bar', 'p3-count', n, TASKS_N),
+        );
+
+        // ---- Generate demo-data.js output ----
+        const entries = projectRows.map((proj, i) => {
+          const { budget, award } = meta[i];
+          return demoEntrySource(proj.id, budget, award);
+        });
+
+        phaseMsg.textContent = `✓ All ${TOTAL} projects seeded successfully.`;
+        document.getElementById('status-badge').textContent = 'Done';
+        document.getElementById('status-badge').className   = 'badge bg-success';
+
+        document.getElementById('output-text').value = entries.join(',\n\n');
+        document.getElementById('output-area').classList.remove('d-none');
+
+      } catch (err) {
+        console.error('Seed error:', err);
+        showError(err.message || String(err));
+        runBtn.disabled = false;
+      }
+    });
+
+    // ---- Boot: require auth ----
+    try {
+      await requireAuth();
+    } catch {
+      showError('Authentication required. Please log in first.');
+    }
+  </script>
+</body>
+</html>

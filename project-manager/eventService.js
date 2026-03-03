@@ -3,18 +3,19 @@
 // All DB access goes through the adapter in db/index.js — no direct Supabase calls.
 
 import { db } from '../db/index.js';
+import { updateRow, deleteRow } from '../configurator/modules/db.js';
 import { EVENT_TYPES } from './events.config.js';
 
 // Replicates: left(regexp_replace(body, '\s+', ' ', 'g'), 140)
-function summarize(text) {
+export function summarize(text) {
   return (text || '').replace(/\s+/g, ' ').trim().slice(0, 140);
 }
 
-function formatCurrency(amount) {
+export function formatCurrency(amount) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
 }
 
-function estimateSummary({ estimateType, status, estimateDate, estimateAwardYear, totalAmount }) {
+export function estimateSummary({ estimateType, status, estimateDate, estimateAwardYear, totalAmount }) {
   const initcap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Draft';
   const parts = [
     estimateType || '',
@@ -324,4 +325,109 @@ export async function addEstimate({
   });
 
   return { estimate: updatedEstimate, event, tasks: insertedTasks };
+}
+
+// ---------- updateEstimate ----------
+// Replaces all tasks for an estimate and refreshes the event payload.
+export async function updateEstimate({
+  estimateId,
+  estimateType,
+  status,
+  estimateDate,
+  estimateAwardYear = null,
+  tasks = [],
+}) {
+  const userId = await db.getUserId();
+  if (!userId) throw new Error('not authenticated');
+  if (!estimateType?.trim()) throw new Error('estimate_type is required');
+
+  const resolvedStatus = status?.trim() || 'draft';
+
+  await updateRow('estimates', 'id', estimateId, {
+    status: resolvedStatus,
+    estimate_type: estimateType,
+    estimate_date: estimateDate || null,
+    estimate_award_year: estimateAwardYear,
+  });
+
+  // Replace tasks: delete existing, re-insert in order
+  const existingTasks = await loadEstimateTasks(estimateId);
+  for (const task of existingTasks) {
+    await deleteRow('estimate_tasks', 'id', task.id);
+  }
+  for (let i = 0; i < tasks.length; i++) {
+    await db.insert('estimate_tasks', {
+      estimate_id: estimateId,
+      sort_order: i + 1,
+      code: tasks[i].code,
+      description: tasks[i].description,
+      amount: tasks[i].amount,
+      created_by: userId,
+    });
+  }
+
+  // Re-fetch so trigger-updated total_amount is reflected
+  const updatedEstimate = await db.findOne('estimates', 'id', estimateId);
+
+  // Sync the feed event's payload and summary
+  const summary = estimateSummary({
+    estimateType,
+    status: resolvedStatus,
+    estimateDate,
+    estimateAwardYear,
+    totalAmount: updatedEstimate?.total_amount ?? 0,
+  });
+
+  const { rows: [feedEvent] } = await db.query('events', {
+    filters: [
+      { key: 'subject_id',    op: 'eq', value: estimateId },
+      { key: 'subject_table', op: 'eq', value: 'estimates' },
+    ],
+    pageSize: 1,
+  });
+
+  if (feedEvent) {
+    await updateRow('events', 'id', feedEvent.id, {
+      summary,
+      payload: {
+        status: updatedEstimate.status,
+        estimate_type: updatedEstimate.estimate_type,
+        estimate_date: updatedEstimate.estimate_date,
+        estimate_award_year: updatedEstimate.estimate_award_year,
+        total_amount: updatedEstimate.total_amount,
+      },
+    });
+  }
+
+  return { estimate: updatedEstimate };
+}
+
+// ---------- loadEstimatesOverTime ----------
+// Returns all estimates for a project ordered by estimate_date ASC,
+// each with its tasks pre-loaded (sorted code → description).
+export async function loadEstimatesOverTime(projectId) {
+  const { rows: estimates } = await db.query('estimates', {
+    select: 'id, estimate_type, status, estimate_date, estimate_award_year, total_amount',
+    filters: [{ key: 'project_id', op: 'eq', value: projectId }],
+    order: { col: 'estimate_date', dir: 'asc' },
+    pageSize: null,
+  });
+  if (!estimates.length) return [];
+
+  const ids = estimates.map(e => e.id);
+  const { rows: tasks } = await db.query('estimate_tasks', {
+    select: 'id, estimate_id, code, description, amount',
+    filters: [{ key: 'estimate_id', op: 'in', value: ids }],
+    pageSize: null,
+  });
+
+  const taskMap = Object.fromEntries(estimates.map(e => [e.id, []]));
+  for (const t of tasks) taskMap[t.estimate_id]?.push(t);
+  for (const arr of Object.values(taskMap)) {
+    arr.sort((a, b) =>
+      a.code.localeCompare(b.code, undefined, { numeric: true }) ||
+      a.description.localeCompare(b.description)
+    );
+  }
+  return estimates.map(e => ({ estimate: e, tasks: taskMap[e.id] }));
 }

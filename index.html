@@ -6,30 +6,12 @@
   <title>Nienna — Sign in</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
-  <link href="./styles.css" rel="stylesheet" />
+  <link href="./style.css" rel="stylesheet" />
   <style>
-    /* --- Page aesthetics --- */
-    :root {
-      --brand: #0039A6;
-      --glass-bg: rgba(15, 15, 18, 0.6);
-      --glass-border: rgba(255, 255, 255, 0.08);
-    }
-    body {
-      min-height: 100vh;
-      background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
-                  radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
-                  linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
-      display: grid;
-      place-items: center;
-      padding: 2rem;
-    }
-    .auth-shell {
-      max-width: 980px;
-      width: 100%;
-    }
+    body { display: grid; place-items: center; padding: 2rem; }
+    .auth-shell { max-width: 980px; width: 100%; }
+    /* Auth card is larger than the standard glass-card */
     .glass-card {
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border-radius: 1.25rem;
@@ -46,15 +28,10 @@
       border: 1px solid rgba(0, 57, 166, .35);
       color: white;
     }
-    .divider {
-      height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
-    }
+    .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent); }
     .input-group .form-control { border-right: 0; }
     .input-group .btn-outline-secondary { border-left: 0; }
     .form-control::placeholder { color: #8c96a0; }
-    .btn-brand { background: var(--brand); border-color: var(--brand); }
-    .btn-brand:hover { filter: brightness(1.05); }
-    .muted { color: #98a2b3; }
   </style>
 </head>
 <body>

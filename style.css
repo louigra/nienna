@@ -1,61 +1,128 @@
 
 :root {
-    --brand: #0039A6;
-    --glass-bg: rgba(15, 15, 18, 0.6);
-    --glass-border: rgba(255, 255, 255, 0.08);
-  }
-  body {
-    min-height: 100vh;
-    background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
-                radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
-                linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
-    display: grid;
-    place-items: center;
-    padding: 2rem;
-  }
-  /* Make the table wrap nicer on small screens (Bootstrap's .table-responsive helps too) */
-  #table-wrap {
-    overflow-x: auto;
-  }
-  
-  /* Compact spacing for inputs/buttons inside cards on narrow screens */
-  .card .form-control,
-  .card .btn {
-    min-height: 42px;
-  }
+  --brand: #0039A6;
+  --glass-bg: rgba(18, 20, 25, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
 
-  /* App pages should not be globally centered */
+body {
+  min-height: 100vh;
+  background: radial-gradient(1200px 600px at 10% -10%, rgba(0, 57, 166, .22), transparent),
+              radial-gradient(1200px 600px at 90% 110%, rgba(0, 0, 0, .18), transparent),
+              linear-gradient(160deg, #0b0c10 0%, #0f1116 100%);
+}
+
+/* App pages should not be globally centered */
 body.app {
-    display: block;          /* undo grid centering */
-    place-items: normal;     /* no centering */
-    padding: 0;              /* let the header touch edges */
-    min-height: 100vh;
-  }
-  
-  /* Ensure the header truly spans full width even if a global .container max-width exists */
-  .page-header .container,
-  .page-header .container-fluid {
-    max-width: 100% !important;
-  }
-  
-  /* Grid should fill the viewport */
-  .layout {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
-    min-height: calc(100vh - 96px); /* roughly viewport minus header */
-  }
-  
-  /* Optional polish */
-  .toolbar {
-    border-bottom: 1px solid rgba(255,255,255,.08);
-    background: rgba(15,15,18,.4);
-    backdrop-filter: blur(6px);
-  }
-  .table-wrap {
-    background: rgba(15,15,18,.35);
-    border: 1px solid rgba(255,255,255,.08);
-    border-radius: 12px;
-    padding: 16px;
-  }
-  .sidebar { width: 300px; }
+  display: block;
+  place-items: normal;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* ---- Page header ---- */
+.page-header {
+  background: linear-gradient(90deg, rgba(0, 57, 166, .2), rgba(233, 87, 77, 0));
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+/* Ensure the header truly spans full width */
+.page-header .container,
+.page-header .container-fluid {
+  max-width: 100% !important;
+}
+
+/* ---- Glass cards ---- */
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  height: 100%;
+}
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(0,0,0,.45);
+  border-color: rgba(255,255,255,.18);
+  text-decoration: none;
+}
+
+.toolbar-card, .filters-card, .table-wrap-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+.panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* ---- Buttons ---- */
+.btn-brand { background: var(--brand); border-color: var(--brand); }
+.btn-brand:hover { filter: brightness(1.08); }
+
+/* ---- Utility ---- */
+.card-link { text-decoration: none; color: inherit; }
+.muted { color: #98a2b3; }
+.select-inline { min-width: 120px; }
+.section-title { letter-spacing: .02em; }
+.nav-rail { min-width: 260px; }
+
+/* ---- Budget panel & progress ---- */
+.budget-panel {
+  background: rgba(15,15,18,.35);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+
+.progress { background: rgba(255,255,255,.06) !important; }
+.progress-bar.bg-success { background-color: #28a745 !important; }
+.progress-bar.bg-danger  { background-color: #dc3545 !important; }
+
+/* ---- App layout (configurator / two-column pages) ---- */
+.layout {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: calc(100vh - 96px);
+}
+
+.sidebar { width: 300px; }
+.sidebar {
+  border-right: 1px solid rgba(255,255,255,.08);
+  background: rgba(15,15,18,.5);
+  backdrop-filter: blur(8px);
+}
+.sidebar .active { background: rgba(255,255,255,.08); }
+
+.toolbar {
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  background: rgba(15,15,18,.4);
+  backdrop-filter: blur(6px);
+}
+
+.table-wrap {
+  background: rgba(15,15,18,.35);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+/* Make the table wrap nicer on small screens */
+#table-wrap { overflow-x: auto; }
+
+/* Compact spacing for inputs/buttons inside cards on narrow screens */
+.card .form-control,
+.card .btn {
+  min-height: 42px;
+}

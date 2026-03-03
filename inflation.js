@@ -6,7 +6,7 @@ let inflatorsMap = null;
 let inflatorsPromise = null;
 
 /* ---------- helpers ---------- */
-function normalizeInflators(rows) {
+export function normalizeInflators(rows) {
   return rows
     .map(r => ({
       year: Number(r.year),
@@ -15,7 +15,7 @@ function normalizeInflators(rows) {
     .filter(r => Number.isFinite(r.year) && Number.isFinite(r.value));
 }
 
-function buildInflatorMap(rows) {
+export function buildInflatorMap(rows) {
   const map = new Map();
   for (const r of rows) map.set(r.year, r.value);
   return map;

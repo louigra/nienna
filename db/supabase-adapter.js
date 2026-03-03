@@ -74,14 +74,14 @@ export class SupabaseAdapter {
     return row;
   }
 
-  // Updates a row by primary key. Returns the updated row.
+  // Updates a row by primary key. Returns the updated row, or null if RLS hides it.
   async update(table, pk, id, data) {
     const { data: row, error } = await this._client
       .from(table)
       .update(data)
       .eq(pk, id)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw error;
     return row;
   }

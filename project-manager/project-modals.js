@@ -2,7 +2,7 @@
 // Bootstrap modal wiring: comment, note, estimate, and the Add dropdown.
 
 import { EVENT_TYPES } from './events.config.js';
-import { addNote, addEventComment, addEstimate } from './eventService.js';
+import { addNote, addEventComment, addEstimate, updateEstimate, loadEstimateTasks } from './eventService.js';
 
 const projectId = new URLSearchParams(location.search).get('project_id');
 
@@ -67,6 +67,36 @@ const estErrEl        = document.getElementById('add-estimate-error');
 const addEstSubmit    = document.getElementById('add-estimate-submit');
 
 const codePattern = /^\d+[A-Za-z]$/i;
+let editEstimateId = null;  // null = add mode, number = edit mode
+
+export async function openEditEstimateModal(estimateId, payload) {
+  editEstimateId = estimateId;
+  estTypeEl.value      = payload.estimate_type || '';
+  estStatusEl.value    = payload.status || 'draft';
+  estDateEl.value      = payload.estimate_date ? String(payload.estimate_date).slice(0, 10) : '';
+  estAwardYearEl.value = payload.estimate_award_year || '';
+  estErrEl.classList.add('d-none');
+  estErrEl.textContent = '';
+  addEstModalEl.querySelector('.modal-title').textContent = 'Edit Estimate';
+  addEstSubmit.innerHTML = '<i class="bi bi-save2 me-1"></i> Save Changes';
+
+  estTaskTbody.innerHTML = '';
+  estRunningTotal.textContent = '$0.00';
+  try {
+    const tasks = await loadEstimateTasks(estimateId);
+    for (const task of tasks) {
+      addTaskRow();
+      const row = estTaskTbody.lastElementChild;
+      row.querySelector('[data-field="code"]').value        = task.code || '';
+      row.querySelector('[data-field="description"]').value = task.description || '';
+      row.querySelector('[data-field="amount"]').value      = task.amount ?? '';
+    }
+    calcRunningTotal();
+  } catch (err) {
+    console.error('Failed to load tasks for edit:', err);
+  }
+  addEstModal.show();
+}
 
 function calcRunningTotal() {
   let sum = 0;
@@ -116,6 +146,7 @@ function addTaskRow() {
 addTaskRowBtn.addEventListener('click', addTaskRow);
 
 addEstModalEl.addEventListener('show.bs.modal', () => {
+  if (editEstimateId) return; // edit mode: already pre-filled by openEditEstimateModal
   estTypeEl.value = '';
   estStatusEl.value = 'draft';
   estDateEl.value = '';
@@ -124,6 +155,12 @@ addEstModalEl.addEventListener('show.bs.modal', () => {
   estRunningTotal.textContent = '$0.00';
   estErrEl.classList.add('d-none');
   estErrEl.textContent = '';
+});
+
+addEstModalEl.addEventListener('hidden.bs.modal', () => {
+  editEstimateId = null;
+  addEstModalEl.querySelector('.modal-title').textContent = 'Add Estimate';
+  addEstSubmit.innerHTML = '<i class="bi bi-plus-circle"></i> Submit Estimate';
 });
 
 // ---------- Modal submit handlers ----------
@@ -199,19 +236,30 @@ export function initModals({ onEventsChanged, getActiveTypeKey }) {
     estErrEl.classList.add('d-none');
     addEstSubmit.disabled = true;
     try {
-      await addEstimate({
-        projectId: Number(projectId),
-        estimateType,
-        status: estStatusEl.value || 'draft',
-        estimateDate: estDateEl.value || null,
-        estimateAwardYear: estAwardYearEl.value ? Number(estAwardYearEl.value) : null,
-        tasks,
-        clientReqId: crypto.randomUUID(),
-      });
+      if (editEstimateId) {
+        await updateEstimate({
+          estimateId: editEstimateId,
+          estimateType,
+          status: estStatusEl.value || 'draft',
+          estimateDate: estDateEl.value || null,
+          estimateAwardYear: estAwardYearEl.value ? Number(estAwardYearEl.value) : null,
+          tasks,
+        });
+      } else {
+        await addEstimate({
+          projectId: Number(projectId),
+          estimateType,
+          status: estStatusEl.value || 'draft',
+          estimateDate: estDateEl.value || null,
+          estimateAwardYear: estAwardYearEl.value ? Number(estAwardYearEl.value) : null,
+          tasks,
+          clientReqId: crypto.randomUUID(),
+        });
+      }
       addEstModal.hide();
       await onEventsChanged(getActiveTypeKey());
     } catch (err) {
-      estErrEl.textContent = err?.message || 'Failed to add estimate.';
+      estErrEl.textContent = err?.message || 'Failed to save estimate.';
       estErrEl.classList.remove('d-none');
     } finally {
       addEstSubmit.disabled = false;

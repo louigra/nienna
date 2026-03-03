@@ -10,26 +10,8 @@
   <link href="./style.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <style>
-    .layout { 
-      display: grid; 
-      grid-template-columns: 300px minmax(0,1fr); /* ensure right pane can grow */
-      min-height: 100vh; 
-      width: 100%;                /* <-- important */
-    }
-    .sidebar { width: 300px; }    /* explicit so it doesn’t collapse */
-    
-    .sidebar {
-      border-right: 1px solid rgba(255,255,255,.08);
-      background: rgba(15,15,18,.5); backdrop-filter: blur(8px);
-    }
-    .sidebar .active { background: rgba(255,255,255,.08); }
-    .toolbar { border-bottom: 1px solid rgba(255,255,255,.08); }
-    .table-wrap { overflow:auto; }
-
-    .page-header {
-      background: linear-gradient(90deg, rgba(0, 57, 166, .2), rgba(233, 87, 77, 0));
-      border-bottom: 1px solid rgba(255,255,255,.08);
-    }
+    /* configurator needs full overflow (not just overflow-x) on the table wrap */
+    .table-wrap { overflow: auto; }
   </style>
 </head>
 <body class="app">

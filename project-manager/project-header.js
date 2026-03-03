@@ -3,11 +3,11 @@
 
 import { db } from '../db/index.js';
 import { updateRow, deleteRow } from '../configurator/modules/db.js';
+import { getOfficialBudget } from './demo-data.js';
 
 const projectId = new URLSearchParams(location.search).get('project_id');
 
 const titleEl    = document.getElementById('proj-header-title');
-const subtitleEl = document.getElementById('proj-subtitle');
 const psrEl      = document.getElementById('proj-header-psr');
 const planningEl = document.getElementById('proj-header-planning');
 const projIdEl   = document.getElementById('proj-header-projid');
@@ -27,21 +27,59 @@ export async function loadProjectHeader() {
   if (!data) { msg.textContent = 'Project not found.'; return; }
 
   titleEl.textContent = data.project_title || '—';
-  subtitleEl.textContent =
-    `Agency ${data.agency ?? '-'} · CIP ${data.cip ?? '-'} · Cat ${data.category ?? '-'} · Elem ${data.element ?? '-'}`;
   psrEl.textContent = data.psr_key || '—';
   planningEl.textContent = [data.planning_number_prefix || '—', data.planning_number_suffix || '']
     .filter(Boolean).join('-');
   projIdEl.textContent = data.project_id || '—';
 
+  const acepBase = [
+    data.agency   != null ? String(data.agency)                           : null,
+    data.cip      != null ? String(data.cip)                              : null,
+    data.category != null ? String(data.category).padStart(2, '0')        : null,
+    data.element  != null ? String(data.element).padStart(2, '0')         : null,
+  ].filter(Boolean).join('');
+  const acepCode = acepBase && data.project_acep
+    ? `${acepBase}/${data.project_acep}`
+    : acepBase || data.project_acep || '';
+  const acepBadge = document.getElementById('proj-acep-badge');
+  if (acepCode) {
+    document.getElementById('proj-header-acep').textContent = acepCode;
+    acepBadge.style.display = '';
+  }
+
   const { rows: [latestEst] } = await db.query('estimates', {
     select: 'total_amount',
     filters: [{ key: 'project_id', op: 'eq', value: projectId }],
-    order: { col: 'created_at', dir: 'desc' },
+    order: { col: 'estimate_date', dir: 'desc' },
     pageSize: 1,
   });
   document.getElementById('proj-header-est-total').textContent =
     latestEst ? formatCurrency(latestEst.total_amount) : '—';
+
+  const officialBudget = getOfficialBudget(projectId);
+  document.getElementById('proj-header-official-budget').textContent =
+    formatCurrency(officialBudget.total);
+
+  const milestonesEl = document.getElementById('proj-milestones');
+  milestonesEl.innerHTML = Object.entries(officialBudget.milestone_dates || {}).map(([label, iso]) => {
+    const d = new Date(iso + 'T00:00:00');
+    const fmt = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:.4rem;padding:.3rem .6rem;text-align:center;min-width:5.5rem">
+      <div class="text-secondary" style="font-size:.65rem;line-height:1.3;text-transform:uppercase;letter-spacing:.05em">${label}</div>
+      <div style="font-size:.8rem;font-weight:500;line-height:1.4">${fmt}</div>
+    </div>`;
+  }).join('');
+
+  const varianceEl = document.getElementById('proj-header-variance');
+  if (latestEst) {
+    const diff = latestEst.total_amount - officialBudget.total;
+    const sign = diff >= 0 ? '+' : '−';
+    const abs  = formatCurrency(Math.abs(diff));
+    varianceEl.textContent = `${sign} ${abs}`;
+    varianceEl.className   = `badge ms-1 ${diff > 0 ? 'text-bg-danger' : 'text-bg-success'}`;
+  } else {
+    varianceEl.textContent = '';
+  }
 
   msg.textContent = '';
   prefillProjectModal(data);
@@ -80,30 +118,44 @@ export function initProjectHeaderListeners() {
     const oldHTML = saveBtn.innerHTML;
     saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving…`;
 
+    const strOrNull = v => { const s = (v ?? '').toString().trim(); return s === '' ? null : s; };
+    const numOrNull = v => { const s = (v ?? '').toString().trim(); if (!s) return null; const n = Number(s); return isNaN(n) ? null : n; };
+
     try {
       const updates = {
-        project_title:           $('proj-title').value.trim(),
-        psr_key:                 $('proj-psr').value.trim(),
-        planning_number_prefix:  $('proj-plan-prefix').value.trim(),
-        planning_number_suffix:  $('proj-plan-suffix').value.trim(),
-        project_id:              $('proj-projectid').value.trim(),
-        pse_number:              $('proj-pse').value.trim(),
-        agency:                  $('proj-agency').value.trim(),
-        cip:                     $('proj-cip').value ? Number($('proj-cip').value) : null,
-        category:                $('proj-category').value ? Number($('proj-category').value) : null,
-        element:                 $('proj-element').value.trim(),
-        project_acep:            $('proj-acep').value.trim(),
+        project_title:           strOrNull($('proj-title').value),
+        psr_key:                 strOrNull($('proj-psr').value),
+        planning_number_prefix:  strOrNull($('proj-plan-prefix').value),
+        planning_number_suffix:  strOrNull($('proj-plan-suffix').value),
+        project_id:              strOrNull($('proj-projectid').value),
+        pse_number:              strOrNull($('proj-pse').value),
+        agency:                  strOrNull($('proj-agency').value),
+        cip:                     numOrNull($('proj-cip').value),
+        category:                numOrNull($('proj-category').value),
+        element:                 strOrNull($('proj-element').value),
+        project_acep:            strOrNull($('proj-acep').value),
       };
 
-      const updated = await updateRow('projects_live', 'id', projectId, updates);
+      await updateRow('projects_live', 'id', projectId, updates);
 
-      titleEl.textContent = updated.project_title || '—';
-      subtitleEl.textContent =
-        `Agency ${updated.agency ?? '-'} · CIP ${updated.cip ?? '-'} · Cat ${updated.category ?? '-'} · Elem ${updated.element ?? '-'}`;
-      psrEl.textContent = updated.psr_key || '—';
-      planningEl.textContent = [updated.planning_number_prefix || '—', updated.planning_number_suffix || '']
+      // Update header from submitted values — don't depend on the DB response row
+      titleEl.textContent = updates.project_title || '—';
+      psrEl.textContent = updates.psr_key || '—';
+      planningEl.textContent = [updates.planning_number_prefix || '—', updates.planning_number_suffix || '']
         .filter((x, i) => i === 0 || x !== '').join('-');
-      projIdEl.textContent = updated.project_id || '—';
+      projIdEl.textContent = updates.project_id || '—';
+
+      const acepBase = [
+        updates.agency   != null ? String(updates.agency)                           : null,
+        updates.cip      != null ? String(updates.cip)                              : null,
+        updates.category != null ? String(updates.category).padStart(2, '0')        : null,
+        updates.element  != null ? String(updates.element).padStart(2, '0')         : null,
+      ].filter(Boolean).join('');
+      const acepCode = acepBase && updates.project_acep
+        ? `${acepBase}/${updates.project_acep}`
+        : acepBase || updates.project_acep || '';
+      document.getElementById('proj-header-acep').textContent = acepCode || '—';
+      document.getElementById('proj-acep-badge').style.display = acepCode ? '' : 'none';
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('projectModal')).hide();
       msg.textContent = 'Project saved.';

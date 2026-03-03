@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nienna — Health</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="../style.css" rel="stylesheet" />
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <i class="bi bi-heart-pulse fs-4 text-danger"></i>
+          <div>
+            <h1 class="h4 mb-0">Health of the Program</h1>
+            <div class="muted small">Current view of the Capital Program</div>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-light" href="../landingpage.html"><i class="bi bi-grid-3x3-gap text-warning me-1"></i> Back to Tiles</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container py-4">
+    <!-- Controls Row -->
+    <div class="row g-3 align-items-stretch mb-3">
+      <!-- Program card -->
+      <div class="col-12 col-lg-4">
+        <div class="toolbar-card h-100 p-3">
+          <h2 class="h6 mb-3 section-title">Program</h2>
+          <form class="row g-2 align-items-center">
+            <div class="col-auto"><label for="tier-select" class="col-form-label">Program</label></div>
+            <div class="col-auto">
+              <select id="tier-select" name="selected-tier" class="form-select select-inline">
+                <option value="">All</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Filters card -->
+      <div class="col-12 col-lg-8">
+        <div class="filters-card h-100 p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h6 mb-0 section-title">ACEP Filters</h2>
+            <div class="muted small">Use any combination</div>
+          </div>
+          <form class="row g-2">
+            <div class="col-12 col-sm-3">
+              <label for="agency-select" class="form-label">Agency</label>
+              <select id="agency-select" name="selected-agency" class="form-select">
+              </select>
+            </div>
+            <div class="col-12 col-sm-3">
+              <label for="category-select" class="form-label">Category</label>
+              <select id="category-select" name="selected-category" class="form-select">
+              </select>
+            </div>
+            <div class="col-12 col-sm-3">
+              <label for="element-select" class="form-label">Element</label>
+              <select id="element-select" name="selected-element" class="form-select">
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report area -->
+    <div class="row g-3">
+      <div class="col-12 col-lg-3">
+        <div class="panel p-2 nav-rail">
+          <div class="list-group" id="report-types-list" role="tablist"></div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-9">
+        <div class="panel p-3">
+          <div id="content-wrap">
+            <div class="text-secondary">Select an report on the left.</div>
+          </div>
+          <p class="text-secondary small mt-2" id="page-msg"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <p class="text-secondary small mt-2" id="app-msg"></p>
+  </div>
+
+
+  <!-- Bootstrap JS bundle (for Modal) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+  <script type="module">
+    import { requireAuth }                    from "../auth-guard.js";
+    import { buildReportsNav, refreshActiveReport } from './health-reports.js';
+    import { TAXONOMY }                       from './taxonomy.js';
+
+    const tierSelect     = document.getElementById('tier-select');
+    const categorySelect = document.getElementById('category-select');
+    const elementSelect  = document.getElementById('element-select');
+    const agencySelect   = document.getElementById('agency-select');
+    const appMsg         = document.getElementById('app-msg');
+
+    function populateAgencySelect(cip) {
+      agencySelect.innerHTML   = '<option value="">All agencies</option>';
+      categorySelect.innerHTML = '<option value="">All categories</option>';
+      elementSelect.innerHTML  = '<option value="">All elements</option>';
+
+      const program = TAXONOMY[Number(cip)];
+      if (!program) return;
+
+      for (const ag of program.agencies) {
+        const opt = document.createElement('option');
+        opt.value       = ag.code;
+        opt.textContent = `${ag.code}: ${ag.label}`;
+        agencySelect.appendChild(opt);
+      }
+    }
+
+    function populateCategorySelect(cip, agencyCode) {
+      categorySelect.innerHTML = '<option value="">All categories</option>';
+      elementSelect.innerHTML  = '<option value="">All elements</option>';
+
+      const program = TAXONOMY[Number(cip)];
+      if (!program) return;
+
+      const agency = agencyCode
+        ? program.agencies.find(a => a.code === agencyCode)
+        : null;
+
+      // If an agency is selected show only its categories; otherwise show all
+      const categories = agency
+        ? agency.categories
+        : program.agencies.flatMap(a => a.categories);
+
+      for (const cat of categories) {
+        const opt = document.createElement('option');
+        opt.value       = cat.num;
+        opt.textContent = `${String(cat.num).padStart(2, '0')}: ${cat.label}`;
+        categorySelect.appendChild(opt);
+      }
+    }
+
+    function populateElementSelect(cip, agencyCode, categoryNum) {
+      elementSelect.innerHTML = '<option value="">All elements</option>';
+      if (!categoryNum) return;
+
+      const program = TAXONOMY[Number(cip)];
+      const agencies = agencyCode
+        ? program?.agencies.filter(a => a.code === agencyCode)
+        : program?.agencies ?? [];
+
+      const cat = agencies.flatMap(a => a.categories).find(c => String(c.num) === String(categoryNum));
+      if (!cat) return;
+
+      for (const el of cat.elements) {
+        const opt = document.createElement('option');
+        opt.value       = el.num;
+        opt.textContent = `${String(el.num).padStart(2, '0')}: ${el.label}`;
+        elementSelect.appendChild(opt);
+      }
+    }
+
+    tierSelect.addEventListener('change', () => {
+      populateAgencySelect(tierSelect.value);
+      refreshActiveReport();
+    });
+
+    agencySelect.addEventListener('change', () => {
+      populateCategorySelect(tierSelect.value, agencySelect.value);
+      refreshActiveReport();
+    });
+
+    categorySelect.addEventListener('change', () => {
+      populateElementSelect(tierSelect.value, agencySelect.value, categorySelect.value);
+      refreshActiveReport();
+    });
+
+    elementSelect.addEventListener('change', refreshActiveReport);
+
+    // ---- Boot ----
+    try {
+      await requireAuth();
+      populateAgencySelect(tierSelect.value);
+      buildReportsNav();
+    } catch (err) {
+      console.error('Initialization error:', err);
+      if (appMsg) appMsg.textContent = 'Error during initialization. See console.';
+    }
+  </script>
+</body>
+</html>
