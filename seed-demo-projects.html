@@ -94,6 +94,16 @@
             </div>
           </div>
 
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>Phase 4: Inserting events</span>
+              <span id="p4-count">0 / 176</span>
+            </div>
+            <div class="progress" style="height:8px">
+              <div id="p4-bar" class="progress-bar bg-warning" style="width:0%"></div>
+            </div>
+          </div>
+
           <div id="phase-msg" class="small text-secondary mt-1"></div>
         </div>
 
@@ -198,6 +208,15 @@
     // -------------------------------------------------------
     // HELPERS
     // -------------------------------------------------------
+
+    function estimateSummarySeed({ estimateType, status, estimateDate, estimateAwardYear, totalAmount }) {
+      const initcap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Draft';
+      const fmt = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+      const parts = [estimateType || '', initcap(status), estimateDate ? String(estimateDate).slice(0, 10) : ''];
+      if (estimateAwardYear != null) parts.push(`Award ${estimateAwardYear}`);
+      parts.push(fmt(totalAmount));
+      return parts.filter(Boolean).join(' • ').slice(0, 140);
+    }
 
     function addMonths(dateStr, n) {
       const d = new Date(dateStr + 'T12:00:00Z');
@@ -376,25 +395,66 @@
           (n) => setProgress('p2-bar', 'p2-count', n, TOTAL),
         );
 
-        // ---- Build task specs (3 per estimate = 528 total) ----
-        const taskSpecs = estimateRows.flatMap((est, i) => {
+        // ---- Build task specs grouped by sort_order (stripe approach) ----
+        // Tasks are inserted one stripe at a time (all sort_order=1 across every estimate,
+        // then sort_order=2, then sort_order=3). This keeps each estimate's tasks
+        // sequential so the DB trigger accumulates total_amount correctly, while
+        // still parallelising inserts across estimates within each stripe.
+        const taskStripes = [[], [], []];
+        estimateRows.forEach((est, i) => {
           const { budget, mult } = meta[i];
           const total = Math.round(budget * mult);
           const c3    = Math.round(total * 0.60);
           const c3l   = Math.round(total * 0.20);
           const c3q   = total - c3 - c3l;
-          return [
-            { estimate_id: est.id, sort_order: 1, code: '3C', description: 'Construction', amount: c3,  created_by: userId },
-            { estimate_id: est.id, sort_order: 2, code: '3L', description: 'TA Labor',     amount: c3l, created_by: userId },
-            { estimate_id: est.id, sort_order: 3, code: '3Q', description: 'EFA',           amount: c3q, created_by: userId },
-          ];
+          taskStripes[0].push({ estimate_id: est.id, sort_order: 1, code: '3C', description: 'Construction', amount: c3,  created_by: userId });
+          taskStripes[1].push({ estimate_id: est.id, sort_order: 2, code: '3L', description: 'TA Labor',     amount: c3l, created_by: userId });
+          taskStripes[2].push({ estimate_id: est.id, sort_order: 3, code: '3Q', description: 'EFA',           amount: c3q, created_by: userId });
         });
 
-        // ---- Phase 3: Insert tasks ----
+        // ---- Phase 3: Insert tasks stripe by stripe ----
         phaseMsg.textContent = 'Inserting estimate tasks…';
+        let tasksInserted = 0;
+        for (const stripe of taskStripes) {
+          await batchInsert(
+            'estimate_tasks', stripe, 10,
+            (n) => setProgress('p3-bar', 'p3-count', tasksInserted + n, TASKS_N),
+          );
+          tasksInserted += stripe.length;
+        }
+
+        // ---- Build event specs (one per estimate) ----
+        const eventSpecs = estimateRows.map((est, i) => {
+          const { budget, mult } = meta[i];
+          const total = Math.round(budget * mult);
+          return {
+            project_id:    est.project_id,
+            actor_id:      userId,
+            event_type:    'estimate.added',
+            subject_table: 'estimates',
+            subject_id:    est.id,
+            summary: estimateSummarySeed({
+              estimateType:      est.estimate_type,
+              status:            est.status,
+              estimateDate:      est.estimate_date,
+              estimateAwardYear: est.estimate_award_year,
+              totalAmount:       total,
+            }),
+            payload: {
+              status:              est.status,
+              estimate_type:       est.estimate_type,
+              estimate_date:       est.estimate_date,
+              estimate_award_year: est.estimate_award_year,
+              total_amount:        total,
+            },
+          };
+        });
+
+        // ---- Phase 4: Insert events ----
+        phaseMsg.textContent = 'Inserting events…';
         await batchInsert(
-          'estimate_tasks', taskSpecs, 15,
-          (n) => setProgress('p3-bar', 'p3-count', n, TASKS_N),
+          'events', eventSpecs, 10,
+          (n) => setProgress('p4-bar', 'p4-count', n, TOTAL),
         );
 
         // ---- Generate demo-data.js output ----

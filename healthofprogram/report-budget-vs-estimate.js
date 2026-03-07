@@ -247,10 +247,12 @@ function wireTooltips(containerEl) {
   containerEl.querySelectorAll('[data-bs-toggle="collapse"]').forEach(trigger => {
     const target = doc.getElementById(trigger.dataset.bsTarget?.replace('#', ''));
     if (!target) return;
-    target.addEventListener('show.bs.collapse', () => {
+    target.addEventListener('show.bs.collapse', (e) => {
+      if (e.target !== target) return;
       trigger.querySelector('.toggle-icon')?.classList.replace('bi-chevron-right', 'bi-chevron-down');
     });
-    target.addEventListener('hide.bs.collapse', () => {
+    target.addEventListener('hide.bs.collapse', (e) => {
+      if (e.target !== target) return;
       trigger.querySelector('.toggle-icon')?.classList.replace('bi-chevron-down', 'bi-chevron-right');
     });
   });
