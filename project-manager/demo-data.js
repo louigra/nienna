@@ -1,8 +1,8 @@
 // DEMO DATA — placeholder until official budget API is connected.
 // Replace with real data source; getOfficialBudget() is the integration point.
 //
-// To use with a real project: add an entry below keyed by the project's UUID
-// from the projects_live table (the `id` column, from the URL ?project_id=...).
+// To use with a real project: add an entry below keyed by the dimension id
+// from the dimensions table (dimension_type = 'project', from the URL ?project_id=...).
 
 const OFFICIAL_BUDGETS = {
 
@@ -42,7 +42,7 @@ const OFFICIAL_BUDGETS = {
   },
 
   // ---- Demo projects for health-of-program Report 1 testing ----
-  // Each entry below should have a corresponding row in projects_live with:
+  // Each entry below should have a corresponding dimension (dimension_type = 'project') with:
   //   cip=8 and the category/element noted in the comment.
   // Add these projects in the DB and give them estimates to see Report 1 populated.
 

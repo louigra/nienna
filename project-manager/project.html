@@ -361,7 +361,7 @@
     import { requireAuth } from "../auth-guard.js";
     import { loadProjectHeader, initProjectHeaderListeners } from "./project-header.js";
     import { buildNav, getActiveTypeKey, setActiveLink, loadEventsForType } from "./project-events.js";
-    import { openAddEventCommentModal, openEditEstimateModal, buildAddDropdown, initModals } from "./project-modals.js";
+    import { openAddCommentModal, openEditEstimateModal, buildAddDropdown, initModals } from "./project-modals.js";
 
     const msg = document.getElementById('page-msg');
     const projectId = new URLSearchParams(location.search).get('project_id');
@@ -374,7 +374,7 @@
       throw new Error('No project_id');
     }
 
-    const onComment       = (eventId, parentId) => openAddEventCommentModal(eventId, parentId);
+    const onComment       = (parentDimensionId, rootEventId) => openAddCommentModal(parentDimensionId, rootEventId);
     const onEditEstimate  = (estimateId, payload) => openEditEstimateModal(estimateId, payload);
     const onEventsChanged = (typeKey) => loadEventsForType(typeKey, onComment, onEditEstimate);
 

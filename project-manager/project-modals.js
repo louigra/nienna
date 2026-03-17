@@ -2,7 +2,7 @@
 // Bootstrap modal wiring: comment, note, estimate, and the Add dropdown.
 
 import { EVENT_TYPES } from './events.config.js';
-import { addNote, addEventComment, addEstimate, updateEstimate, loadEstimateTasks } from './eventService.js';
+import { addNote, addComment, addEstimate, updateEstimate, loadEstimateTasks } from './eventService.js';
 
 const projectId = new URLSearchParams(location.search).get('project_id');
 
@@ -12,15 +12,17 @@ const addCmtModalEl = document.getElementById('addCommentModal');
 const addCmtModal   = new bootstrap.Modal(addCmtModalEl);
 const addCmtForm    = document.getElementById('add-comment-form');
 const cmtBodyEl     = document.getElementById('comment-body');
-const parentIdEl    = document.getElementById('parent-comment-id');
 const addCmtErrEl   = document.getElementById('add-comment-error');
 const addCmtSubmit  = document.getElementById('add-comment-submit');
 
-let currentTargetEventId = null;
+// parentDimensionId: the note/estimate/comment being replied to.
+// rootEventId: the root feed item (same as parentDimensionId for top-level comments).
+let currentParentDimensionId = null;
+let currentRootEventId = null;
 
-export function openAddEventCommentModal(eventId, parentId = null) {
-  currentTargetEventId = eventId;
-  parentIdEl.value = parentId ? String(parentId) : '';
+export function openAddCommentModal(parentDimensionId, rootEventId = null) {
+  currentParentDimensionId = parentDimensionId;
+  currentRootEventId = rootEventId ?? parentDimensionId;
   addCmtErrEl.classList.add('d-none');
   addCmtErrEl.textContent = '';
   cmtBodyEl.value = '';
@@ -87,6 +89,7 @@ export async function openEditEstimateModal(estimateId, payload) {
     for (const task of tasks) {
       addTaskRow();
       const row = estTaskTbody.lastElementChild;
+      row.dataset.dimensionId = task.id;
       row.querySelector('[data-field="code"]').value        = task.code || '';
       row.querySelector('[data-field="description"]').value = task.description || '';
       row.querySelector('[data-field="amount"]').value      = task.amount ?? '';
@@ -171,14 +174,14 @@ export function initModals({ onEventsChanged, getActiveTypeKey }) {
   addCmtForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = (cmtBodyEl.value || '').trim();
-    if (!body || !currentTargetEventId) { cmtBodyEl.focus(); return; }
+    if (!body || !currentParentDimensionId) { cmtBodyEl.focus(); return; }
 
     addCmtSubmit.disabled = true;
     try {
-      await addEventComment({
-        eventId: currentTargetEventId,
+      await addComment({
+        parentDimensionId: currentParentDimensionId,
+        rootEventId: currentRootEventId,
         body,
-        parentCommentId: parentIdEl.value ? Number(parentIdEl.value) : null,
         clientReqId: crypto.randomUUID(),
       });
       addCmtModal.hide();
@@ -230,7 +233,7 @@ export function initModals({ onEventsChanged, getActiveTypeKey }) {
         row.querySelector('[data-field="code"]').focus();
         return;
       }
-      tasks.push({ code, description, amount });
+      tasks.push({ id: row.dataset.dimensionId || null, code, description, amount });
     }
 
     estErrEl.classList.add('d-none');

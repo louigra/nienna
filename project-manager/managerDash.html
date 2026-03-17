@@ -155,6 +155,9 @@
             </div>
           </div>
 
+          <div class="modal-body pt-0">
+            <div id="proj-form-error" class="alert alert-danger d-none mb-0 py-2 small"></div>
+          </div>
           <div class="modal-footer">
             <button id="delete-btn" type="button" class="btn btn-outline-danger me-auto d-none"><i class="bi bi-trash"></i> Delete</button>
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -198,8 +201,18 @@
 
 
 
-    const deleteBtn = document.getElementById('delete-btn');
-    const modalTitle= document.getElementById('projectModalTitle');
+    const deleteBtn   = document.getElementById('delete-btn');
+    const modalTitle  = document.getElementById('projectModalTitle');
+    const projFormErr = document.getElementById('proj-form-error');
+
+    function showFormError(msg) {
+      projFormErr.textContent = msg;
+      projFormErr.classList.remove('d-none');
+    }
+    function clearFormError() {
+      projFormErr.textContent = '';
+      projFormErr.classList.add('d-none');
+    }
 
     let currentRows = [];
     let currentEnvelope = null;
@@ -231,20 +244,33 @@
       appMsg.textContent = 'Loading…';
       const filters = getFilters();
 
-
-      const filterArr = [];
-      if (filters.agency)   filterArr.push({ key: 'agency',   op: 'eq', value: filters.agency });
-      if (filters.category) filterArr.push({ key: 'category', op: 'eq', value: Number(filters.category) });
-      if (filters.cip)      filterArr.push({ key: 'cip',      op: 'eq', value: Number(filters.cip) });
-      if (filters.element)  filterArr.push({ key: 'element',  op: 'eq', value: filters.element });
-
       try {
-        const { rows } = await db.query('projects_live', {
-          select: 'id, project_title, psr_key, planning_number_prefix, planning_number_suffix, project_id, pse_number, agency, cip, category, element, project_acep',
-          filters: filterArr,
+        // All project dimensions
+        const { rows: dimRows } = await db.query('dimensions', {
+          select: 'id',
+          filters: [{ key: 'dimension_type', op: 'eq', value: 'project' }],
           order: { col: 'id', dir: 'asc' },
           pageSize: null,
         });
+
+        const fieldNames = [
+          'project_title', 'psr_key', 'planning_number_prefix', 'planning_number_suffix',
+          'project_id', 'pse_number', 'agency', 'cip', 'category', 'element', 'project_acep',
+        ];
+
+        let rows = await Promise.all(
+          dimRows.map(async ({ id }) => {
+            const fields = await db.getDimensionFields(id, fieldNames);
+            return { id, ...fields };
+          })
+        );
+
+        // Apply ACEP filters in JS (values from custom fields)
+        if (filters.agency)   rows = rows.filter(r => String(r.agency ?? '') === String(filters.agency));
+        if (filters.cip)      rows = rows.filter(r => String(r.cip ?? '') === String(filters.cip));
+        if (filters.category) rows = rows.filter(r => String(r.category ?? '') === String(filters.category));
+        if (filters.element)  rows = rows.filter(r => String(r.element ?? '') === String(filters.element));
+
         currentRows = rows;
         searchInput.value = '';
         appMsg.textContent = `Loaded ${currentRows.length} row(s)`;
@@ -406,6 +432,7 @@ wrapEl.appendChild(panel);
     // Open modal for adding new
     addBtn.onclick = () => {
       clearForm();
+      clearFormError();
       // seed from filters
       agencyEl.value = agencySelect.value || '';
       document.getElementById('proj-cip').value = cipSelect.value || '';
@@ -440,7 +467,8 @@ wrapEl.appendChild(panel);
 
     form.onsubmit = async (e) => {
       e.preventDefault();
-    
+      clearFormError();
+
       const payload = {
         project_title:           strOrNull(titleEl.value),
         psr_key:                 strOrNull(psrEl.value),
@@ -454,25 +482,31 @@ wrapEl.appendChild(panel);
         element:                 strOrNull(elemEl.value),
         project_acep:            strOrNull(acepEl.value),
       };
-    
+
       if (!payload.project_title) {
+        showFormError('Project Title is required.');
         titleEl.focus();
         return;
       }
-    
+
       const id = idInput.value ? Number(idInput.value) : null;
+      const saveBtn = document.getElementById('save-btn');
+      saveBtn.disabled = true;
 
       try {
         if (id) {
-          await db.update('projects_live', 'id', id, payload);
+          await db.setDimensionFields(id, 'project', payload);
         } else {
-          await db.insert('projects_live', payload);
+          const userId = await db.getUserId();
+          await db.createDimension('project', userId, payload);
         }
       } catch (err) {
-        appMsg.textContent = err.message;
+        showFormError(err.message || 'Failed to save project.');
+        saveBtn.disabled = false;
         return;
       }
 
+      saveBtn.disabled = false;
       modal.hide();
       await loadProjects();
     };
@@ -483,7 +517,7 @@ wrapEl.appendChild(panel);
       if (!confirm('Delete this project?')) return;
 
       try {
-        await db.delete('projects_live', 'id', id);
+        await db.delete('dimensions', 'id', id);
       } catch (err) {
         appMsg.textContent = err.message;
         return;

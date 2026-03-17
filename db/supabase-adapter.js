@@ -104,4 +104,91 @@ export class SupabaseAdapter {
     if (error) throw error;
     return data;
   }
+
+  // ── Dimensions helpers ──────────────────────────────────────────────────────
+
+  // Returns a flat { fieldName: value } object for a given dimension.
+  // Optionally pass fieldNames to restrict which fields are returned.
+  // Values are returned as parsed JavaScript values (JSONB → JS).
+  async getDimensionFields(dimensionId, fieldNames = null) {
+    const { data, error } = await this._client
+      .from('dimensions_custom_fields_values')
+      .select('value, dimensions_custom_fields!inner(field_name)')
+      .eq('dimension_id', dimensionId);
+    if (error) throw error;
+    const result = {};
+    for (const row of data || []) {
+      const name = row.dimensions_custom_fields?.field_name;
+      if (!name) continue;
+      if (fieldNames && !fieldNames.includes(name)) continue;
+      result[name] = row.value;
+    }
+    return result;
+  }
+
+  // Upserts custom field values for a dimension.
+  // dimensionType is required to look up the correct custom_field_id entries.
+  // fields: { fieldName: jsValue, ... } — values are stored as JSONB.
+  async setDimensionFields(dimensionId, dimensionType, fields) {
+    const fieldNames = Object.keys(fields);
+    if (!fieldNames.length) return;
+
+    const { data: defs, error: defErr } = await this._client
+      .from('dimensions_custom_fields')
+      .select('id, field_name')
+      .eq('dimension_type', dimensionType)
+      .in('field_name', fieldNames);
+    if (defErr) throw defErr;
+
+    const defMap = Object.fromEntries((defs || []).map(d => [d.field_name, d.id]));
+    const rows = fieldNames
+      .filter(name => defMap[name] != null)
+      .map(name => ({
+        dimension_id: dimensionId,
+        custom_field_id: defMap[name],
+        value: fields[name],
+      }));
+
+    if (!rows.length) return;
+    const { error } = await this._client
+      .from('dimensions_custom_fields_values')
+      .upsert(rows, { onConflict: 'dimension_id,custom_field_id' });
+    if (error) throw error;
+  }
+
+  // Creates a dimension row and sets its custom fields in one call.
+  // Returns the inserted dimensions row (with id, dimension_type, created_at, created_by).
+  async createDimension(dimensionType, authorId, fields = {}) {
+    const { data: dim, error } = await this._client
+      .from('dimensions')
+      .insert([{ dimension_type: dimensionType, created_by: authorId }])
+      .select()
+      .single();
+    if (error) throw error;
+    if (Object.keys(fields).length > 0) {
+      await this.setDimensionFields(dim.id, dimensionType, fields);
+    }
+    return dim;
+  }
+
+  // Returns an array of dimension IDs of the given type where fieldName equals value.
+  // For JSONB equality, value is JSON-serialized before comparison.
+  async findDimensionsByField(dimensionType, fieldName, value) {
+    const { data: def, error: defErr } = await this._client
+      .from('dimensions_custom_fields')
+      .select('id')
+      .eq('dimension_type', dimensionType)
+      .eq('field_name', fieldName)
+      .maybeSingle();
+    if (defErr) throw defErr;
+    if (!def) return [];
+
+    const { data, error } = await this._client
+      .from('dimensions_custom_fields_values')
+      .select('dimension_id')
+      .eq('custom_field_id', def.id)
+      .eq('value', JSON.stringify(value));
+    if (error) throw error;
+    return (data || []).map(r => r.dimension_id);
+  }
 }

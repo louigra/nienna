@@ -3,7 +3,6 @@
 // All DB access goes through the adapter in db/index.js — no direct Supabase calls.
 
 import { db } from '../db/index.js';
-import { updateRow, deleteRow } from '../configurator/modules/db.js';
 import { EVENT_TYPES } from './events.config.js';
 
 // Replicates: left(regexp_replace(body, '\s+', ' ', 'g'), 140)
@@ -27,54 +26,127 @@ export function estimateSummary({ estimateType, status, estimateDate, estimateAw
   return parts.filter(Boolean).join(' • ').slice(0, 140);
 }
 
-// ---------- Load events + nested comments for a project ----------
-// Replaces the direct supabase query in project.html loadEventsForType().
-// Does two queries (events, then event_comments) and joins in JS so the
-// query format is not tied to PostgREST's nested-select syntax.
-export async function loadEvents({ projectId, typeKey }) {
-  const filters = [
-    { key: 'project_id', op: 'eq', value: projectId },
-    { key: 'event_type', op: 'neq', value: 'comment.added' },
-  ];
+// Builds the summary + payload shape for a dimension, matching what project-events.js renders.
+function buildEventShape(dimType, fields) {
+  switch (dimType) {
+    case 'note':
+      return {
+        event_type: 'note.added',
+        summary: summarize(fields.body || ''),
+        payload: { body_preview: String(fields.body || '').slice(0, 280), parent_note_id: fields.parent_note_id ?? null },
+      };
+    case 'estimate':
+      return {
+        event_type: 'estimate.added',
+        summary: estimateSummary({
+          estimateType: fields.estimate_type,
+          status: fields.status,
+          estimateDate: fields.estimate_date,
+          estimateAwardYear: fields.estimate_award_year,
+          totalAmount: fields.total_amount,
+        }),
+        payload: {
+          estimate_type: fields.estimate_type,
+          status: fields.status,
+          estimate_date: fields.estimate_date,
+          estimate_award_year: fields.estimate_award_year,
+          total_amount: fields.total_amount,
+        },
+      };
+    case 'comment':
+      return {
+        event_type: 'comment.added',
+        summary: summarize(fields.body || ''),
+        payload: { body_preview: String(fields.body || '').slice(0, 280), parent_comment_id: fields.parent_comment_id ?? null },
+      };
+    default:
+      return { event_type: `${dimType}.added`, summary: '', payload: {} };
+  }
+}
 
-  if (typeKey !== 'feed') {
+// ---------- Load events + nested comments for a project ----------
+// Each note/estimate/comment dimension with display_in_feed=true IS a feed entry.
+// No separate feed_event rows needed.
+export async function loadEvents({ projectId, typeKey }) {
+  const pid = Number(projectId);
+
+  // Determine which dimension types to load (based on tab filter)
+  let dimTypes;
+  if (typeKey === 'feed') {
+    dimTypes = ['note', 'estimate', 'comment'];
+  } else {
     const def = EVENT_TYPES.find(t => t.key === typeKey);
     if (!def) throw new Error(`Unknown event type key: ${typeKey}`);
-    const types = Array.isArray(def.eventTypes) && def.eventTypes.length
-      ? def.eventTypes
-      : [typeKey];
-    filters.push({ key: 'event_type', op: 'in', value: types });
+    const eventTypeSet = new Set(Array.isArray(def.eventTypes) ? def.eventTypes : [typeKey]);
+    // Map event type prefixes back to dimension types
+    dimTypes = ['note', 'estimate', 'comment', 'document'].filter(dt =>
+      [...eventTypeSet].some(et => et.startsWith(`${dt}.`))
+    );
+    if (!dimTypes.length) dimTypes = ['note', 'estimate', 'comment'];
   }
 
-  const { rows: events } = await db.query('events', {
-    select: 'id, project_id, actor_id, event_type, subject_table, subject_id, summary, payload, created_at',
-    filters,
-    order: { col: 'created_at', dir: 'desc' },
-    pageSize: null,
-  });
+  // Fetch IDs for each type, filtering by project_id (display_in_feed=true is set on all inserts)
+  const idLists = await Promise.all(
+    dimTypes.map(type => db.findDimensionsByField(type, 'project_id', pid))
+  );
+  const typedIds = dimTypes.flatMap((type, i) => idLists[i].map(id => ({ id, type })));
+  if (!typedIds.length) return [];
 
-  if (!events.length) return events;
+  // Load dimension metadata + fields, build event-shaped objects
+  const events = await Promise.all(
+    typedIds.map(async ({ id, type }) => {
+      const { rows: [dim] } = await db.query('dimensions', {
+        select: 'id, created_by, created_at',
+        filters: [{ key: 'id', op: 'eq', value: id }],
+        pageSize: 1,
+      });
+      const fields = await db.getDimensionFields(id);
+      return {
+        id,
+        subject_id: id,  // the dimension IS the subject (used by estimate task toggle + edit)
+        created_at: dim?.created_at,
+        actor_id: dim?.created_by,
+        ...buildEventShape(type, fields),
+      };
+    })
+  );
 
-  const eventIds = events.map(e => e.id);
-  const { rows: comments } = await db.query('event_comments', {
-    select: 'id, event_id, author_id, body, parent_comment_id, created_at',
-    filters: [{ key: 'event_id', op: 'in', value: eventIds }],
-    pageSize: null,
-  });
+  events.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  // Load all comments for each feed item via root_event_id (always points to the root
+  // note/estimate/comment dim regardless of threading depth).
+  const commentDimIdsByEvent = await Promise.all(
+    events.map(e => db.findDimensionsByField('comment', 'root_event_id', e.id))
+  );
+  const allCommentDimIds = commentDimIdsByEvent.flat();
+
+  const commentObjs = await Promise.all(
+    allCommentDimIds.map(async id => {
+      const { rows: [dim] } = await db.query('dimensions', {
+        select: 'id, created_by, created_at',
+        filters: [{ key: 'id', op: 'eq', value: id }],
+        pageSize: 1,
+      });
+      const fields = await db.getDimensionFields(id, ['root_event_id', 'parent_dimension_id', 'body']);
+      return { id, author_id: dim?.created_by, created_at: dim?.created_at, ...fields };
+    })
+  );
 
   const commentsByEvent = {};
-  for (const c of comments) {
-    if (!commentsByEvent[c.event_id]) commentsByEvent[c.event_id] = [];
-    commentsByEvent[c.event_id].push(c);
+  for (const c of commentObjs) {
+    const eid = c.root_event_id;
+    if (!eid) continue;
+    if (!commentsByEvent[eid]) commentsByEvent[eid] = [];
+    commentsByEvent[eid].push(c);
   }
 
-  const commentAuthorIds = comments.map(c => c.author_id).filter(Boolean);
+  const commentAuthorIds = commentObjs.map(c => c.author_id).filter(Boolean);
   const actorIds = [...new Set([...events.map(e => e.actor_id), ...commentAuthorIds].filter(Boolean))];
-  const { rows: profiles } = await db.query('profiles', {
+  const { rows: profiles } = actorIds.length ? await db.query('profiles', {
     select: 'user_id, display_name',
     filters: [{ key: 'user_id', op: 'in', value: actorIds }],
     pageSize: null,
-  });
+  }) : { rows: [] };
   const nameById = Object.fromEntries(profiles.map(p => [p.user_id, p.display_name]));
 
   return events.map(e => ({
@@ -94,153 +166,70 @@ export async function addNote({ projectId, body, parentNoteId = null, clientReqI
   if (!body?.trim()) throw new Error('empty note');
 
   if (clientReqId) {
-    const existing = await db.findOne('notes', 'client_req_id', clientReqId);
-    if (existing) {
-      const { rows: [event] } = await db.query('events', {
-        filters: [
-          { key: 'subject_id', op: 'eq', value: existing.id },
-          { key: 'subject_table', op: 'eq', value: 'notes' },
-        ],
-        pageSize: 1,
-      });
-      return { note: existing, event: event ?? null };
+    const [existingNoteId] = await db.findDimensionsByField('note', 'client_req_id', clientReqId);
+    if (existingNoteId) {
+      const fields = await db.getDimensionFields(existingNoteId, ['body', 'parent_note_id', 'client_req_id']);
+      return { note: { id: existingNoteId, ...fields } };
     }
   }
 
-  const note = await db.insert('notes', {
-    project_id: projectId,
-    author_id: userId,
+  const note = await db.createDimension('note', userId, {
+    project_id: Number(projectId),
     body,
-    parent_note_id: parentNoteId,
+    parent_note_id: parentNoteId ?? null,
     client_req_id: clientReqId ?? null,
+    display_in_feed: true,
   });
 
-  const event = await db.insert('events', {
-    project_id: projectId,
-    actor_id: userId,
-    event_type: 'note.added',
-    subject_table: 'notes',
-    subject_id: note.id,
-    summary: summarize(body),
-    payload: { body_preview: body.slice(0, 280), parent_note_id: parentNoteId },
-    client_req_id: clientReqId ?? null,
-  });
-
-  return { note, event };
+  return { note };
 }
 
-// ---------- app_add_event_comment ----------
-export async function addEventComment({ eventId, body, parentCommentId = null, clientReqId }) {
+// ---------- addComment ----------
+// Adds a comment to any dimension (note, estimate, document, or another comment).
+// parentDimensionId: the immediate parent (feed item or another comment).
+// rootEventId: the root feed item — pass the same as parentDimensionId for top-level comments,
+//              or the original root when replying to a comment.
+export async function addComment({ parentDimensionId, rootEventId, body, clientReqId }) {
   const userId = await db.getUserId();
   if (!userId) throw new Error('not authenticated');
   if (!body?.trim()) throw new Error('empty comment');
 
   if (clientReqId) {
-    const existing = await db.findOne('event_comments', 'client_req_id', clientReqId);
-    if (existing) {
-      const { rows: [feedEvent] } = await db.query('events', {
-        filters: [
-          { key: 'subject_id', op: 'eq', value: existing.id },
-          { key: 'subject_table', op: 'eq', value: 'event_comments' },
-        ],
-        pageSize: 1,
-      });
-      return { comment: existing, feedEvent: feedEvent ?? null };
+    const [existingCommentId] = await db.findDimensionsByField('comment', 'client_req_id', clientReqId);
+    if (existingCommentId) {
+      const fields = await db.getDimensionFields(existingCommentId);
+      return { comment: { id: existingCommentId, ...fields } };
     }
   }
 
-  // Need the parent event's project_id and event_type to build the feed entry
-  const parentEvent = await db.findOne('events', 'id', eventId, 'id, project_id, event_type');
-  if (!parentEvent) throw new Error(`event ${eventId} not found`);
+  const resolvedRoot = rootEventId ?? parentDimensionId;
 
-  const comment = await db.insert('event_comments', {
-    event_id: eventId,
-    author_id: userId,
+  const comment = await db.createDimension('comment', userId, {
+    parent_dimension_id: parentDimensionId,
+    root_event_id: resolvedRoot,
     body,
-    parent_comment_id: parentCommentId ?? null,
     client_req_id: clientReqId ?? null,
   });
 
-  const feedEvent = await db.insert('events', {
-    project_id: parentEvent.project_id,
-    actor_id: userId,
-    event_type: 'comment.added',
-    subject_table: 'event_comments',
-    subject_id: comment.id,
-    summary: summarize(body),
-    payload: {
-      body_preview: body.slice(0, 280),
-      parent_comment_id: parentCommentId,
-      on_event_id: eventId,
-      on_event_type: parentEvent.event_type,
-    },
-    client_req_id: clientReqId ?? null,
-  });
-
-  return { comment, feedEvent };
-}
-
-// ---------- app_add_comment (top-level project comment) ----------
-export async function addComment({ projectId, body, parentCommentId = null, clientReqId }) {
-  const userId = await db.getUserId();
-  if (!userId) throw new Error('not authenticated');
-  if (!body?.trim()) throw new Error('empty comment');
-
-  if (clientReqId) {
-    const existing = await db.findOne('comments', 'client_req_id', clientReqId);
-    if (existing) {
-      const { rows: [event] } = await db.query('events', {
-        filters: [
-          { key: 'subject_id', op: 'eq', value: existing.id },
-          { key: 'subject_table', op: 'eq', value: 'comments' },
-        ],
-        pageSize: 1,
-      });
-      return { comment: existing, event: event ?? null };
-    }
-  }
-
-  const comment = await db.insert('comments', {
-    project_id: projectId,
-    author_id: userId,
-    body,
-    parent_comment_id: parentCommentId ?? null,
-    client_req_id: clientReqId ?? null,
-  });
-
-  const event = await db.insert('events', {
-    project_id: projectId,
-    actor_id: userId,
-    event_type: 'comment.added',
-    subject_table: 'comments',
-    subject_id: comment.id,
-    summary: summarize(body),
-    payload: {
-      body_preview: body.slice(0, 280),
-      parent_comment_id: parentCommentId,
-    },
-    client_req_id: clientReqId ?? null,
-  });
-
-  return { comment, event };
+  return { comment };
 }
 
 // ---------- loadEstimateTasks ----------
 export async function loadEstimateTasks(estimateId) {
-  const { rows } = await db.query('estimate_tasks', {
-    select: 'id, sort_order, code, description, amount',
-    filters: [{ key: 'estimate_id', op: 'eq', value: estimateId }],
-    order: { col: 'sort_order', dir: 'asc' },
-    pageSize: null,
-  });
-  return rows;
+  const taskDimIds = await db.findDimensionsByField('estimate_task', 'estimate_id', estimateId);
+  const tasks = await Promise.all(
+    taskDimIds.map(async id => {
+      const fields = await db.getDimensionFields(id, ['sort_order', 'code', 'description', 'amount', 'estimate_id']);
+      return { id, ...fields };
+    })
+  );
+  tasks.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return tasks;
 }
 
 // ---------- app_add_estimate ----------
 // tasks: [{ code, description, amount }] in display order.
-// total_amount on the estimate is maintained by a DB trigger that fires
-// when estimate_tasks rows are inserted, so we re-fetch after inserting
-// tasks to get the correct total before writing the feed event.
+// total_amount is computed from task amounts (no DB trigger in the new schema).
 export async function addEstimate({
   projectId,
   estimateType,
@@ -255,76 +244,40 @@ export async function addEstimate({
   if (!estimateType?.trim()) throw new Error('estimate_type is required');
 
   if (clientReqId) {
-    const { rows: [existingEvent] } = await db.query('events', {
-      filters: [
-        { key: 'client_req_id', op: 'eq', value: clientReqId },
-        { key: 'subject_table', op: 'eq', value: 'estimates' },
-        { key: 'event_type', op: 'eq', value: 'estimate.added' },
-      ],
-      pageSize: 1,
-    });
-    if (existingEvent) {
-      const estimate = await db.findOne('estimates', 'id', existingEvent.subject_id);
-      return { estimate, event: existingEvent };
+    const [existingEstimateId] = await db.findDimensionsByField('estimate', 'client_req_id', clientReqId);
+    if (existingEstimateId) {
+      const fields = await db.getDimensionFields(existingEstimateId);
+      return { estimate: { id: existingEstimateId, ...fields } };
     }
   }
 
   const resolvedStatus = status?.trim() || 'draft';
+  const totalAmount = tasks.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  const estimate = await db.insert('estimates', {
-    project_id: projectId,
-    author_id: userId,
+  const estimate = await db.createDimension('estimate', userId, {
+    project_id: Number(projectId),
     status: resolvedStatus,
     estimate_type: estimateType,
     estimate_date: estimateDate,
-    estimate_award_year: estimateAwardYear,
-    total_amount: 0,
+    estimate_award_year: estimateAwardYear ?? null,
+    total_amount: totalAmount,
+    client_req_id: clientReqId ?? null,
+    display_in_feed: true,
   });
 
-  // Insert tasks in order — the DB trigger updates estimate.total_amount after each insert
   const insertedTasks = [];
   for (let i = 0; i < tasks.length; i++) {
-    console.log(`Inserting task ${i + 1}/${tasks.length} for estimate ${estimate.id}`);
-    const task = await db.insert('estimate_tasks', {
+    const task = await db.createDimension('estimate_task', userId, {
       estimate_id: estimate.id,
       sort_order: i + 1,
       code: tasks[i].code,
       description: tasks[i].description,
       amount: tasks[i].amount,
-      created_by: userId,
     });
     insertedTasks.push(task);
   }
 
-  // Re-fetch estimate so the trigger-updated total_amount is reflected in the event
-  const updatedEstimate = await db.findOne('estimates', 'id', estimate.id) ?? estimate;
-
-  const summary = estimateSummary({
-    estimateType,
-    status: resolvedStatus,
-    estimateDate,
-    estimateAwardYear,
-    totalAmount: updatedEstimate.total_amount ?? 0,
-  });
-
-  const event = await db.insert('events', {
-    project_id: projectId,
-    actor_id: userId,
-    event_type: 'estimate.added',
-    subject_table: 'estimates',
-    subject_id: updatedEstimate.id,
-    summary,
-    payload: {
-      status: updatedEstimate.status,
-      estimate_type: updatedEstimate.estimate_type,
-      estimate_date: updatedEstimate.estimate_date,
-      estimate_award_year: updatedEstimate.estimate_award_year,
-      total_amount: updatedEstimate.total_amount,
-    },
-    client_req_id: clientReqId ?? null,
-  });
-
-  return { estimate: updatedEstimate, event, tasks: insertedTasks };
+  return { estimate: { id: estimate.id, total_amount: totalAmount, status: resolvedStatus, estimate_type: estimateType, estimate_date: estimateDate, estimate_award_year: estimateAwardYear }, tasks: insertedTasks };
 }
 
 // ---------- updateEstimate ----------
@@ -342,92 +295,83 @@ export async function updateEstimate({
   if (!estimateType?.trim()) throw new Error('estimate_type is required');
 
   const resolvedStatus = status?.trim() || 'draft';
+  const totalAmount = tasks.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-  await updateRow('estimates', 'id', estimateId, {
+  await db.setDimensionFields(estimateId, 'estimate', {
     status: resolvedStatus,
     estimate_type: estimateType,
     estimate_date: estimateDate || null,
-    estimate_award_year: estimateAwardYear,
+    estimate_award_year: estimateAwardYear ?? null,
+    total_amount: totalAmount,
   });
 
-  // Replace tasks: delete existing, re-insert in order
+  // Sync tasks: update existing, insert new, delete removed
   const existingTasks = await loadEstimateTasks(estimateId);
+  const existingIds = new Set(existingTasks.map(t => String(t.id)));
+  const submittedIds = new Set(tasks.filter(t => t.id).map(t => String(t.id)));
+
   for (const task of existingTasks) {
-    await deleteRow('estimate_tasks', 'id', task.id);
+    if (!submittedIds.has(String(task.id))) {
+      await db.delete('dimensions_custom_fields_values', 'dimension_id', task.id);
+      await db.delete('dimensions', 'id', task.id);
+    }
   }
+
   for (let i = 0; i < tasks.length; i++) {
-    await db.insert('estimate_tasks', {
-      estimate_id: estimateId,
-      sort_order: i + 1,
-      code: tasks[i].code,
-      description: tasks[i].description,
-      amount: tasks[i].amount,
-      created_by: userId,
-    });
+    const t = tasks[i];
+    if (t.id && existingIds.has(String(t.id))) {
+      await db.setDimensionFields(t.id, 'estimate_task', {
+        sort_order: i + 1,
+        code: t.code,
+        description: t.description,
+        amount: t.amount,
+      });
+    } else {
+      await db.createDimension('estimate_task', userId, {
+        estimate_id: estimateId,
+        sort_order: i + 1,
+        code: t.code,
+        description: t.description,
+        amount: t.amount,
+      });
+    }
   }
 
-  // Re-fetch so trigger-updated total_amount is reflected
-  const updatedEstimate = await db.findOne('estimates', 'id', estimateId);
-
-  // Sync the feed event's payload and summary
-  const summary = estimateSummary({
-    estimateType,
-    status: resolvedStatus,
-    estimateDate,
-    estimateAwardYear,
-    totalAmount: updatedEstimate?.total_amount ?? 0,
-  });
-
-  const { rows: [feedEvent] } = await db.query('events', {
-    filters: [
-      { key: 'subject_id',    op: 'eq', value: estimateId },
-      { key: 'subject_table', op: 'eq', value: 'estimates' },
-    ],
-    pageSize: 1,
-  });
-
-  if (feedEvent) {
-    await updateRow('events', 'id', feedEvent.id, {
-      summary,
-      payload: {
-        status: updatedEstimate.status,
-        estimate_type: updatedEstimate.estimate_type,
-        estimate_date: updatedEstimate.estimate_date,
-        estimate_award_year: updatedEstimate.estimate_award_year,
-        total_amount: updatedEstimate.total_amount,
-      },
-    });
-  }
-
-  return { estimate: updatedEstimate };
+  // The estimate dimension itself is the feed item — no separate event row to sync.
+  return { estimate: { id: estimateId, status: resolvedStatus, estimate_type: estimateType, estimate_date: estimateDate, estimate_award_year: estimateAwardYear, total_amount: totalAmount } };
 }
 
 // ---------- loadEstimatesOverTime ----------
 // Returns all estimates for a project ordered by estimate_date ASC,
 // each with its tasks pre-loaded (sorted code → description).
 export async function loadEstimatesOverTime(projectId) {
-  const { rows: estimates } = await db.query('estimates', {
-    select: 'id, estimate_type, status, estimate_date, estimate_award_year, total_amount',
-    filters: [{ key: 'project_id', op: 'eq', value: projectId }],
-    order: { col: 'estimate_date', dir: 'asc' },
-    pageSize: null,
-  });
-  if (!estimates.length) return [];
+  const estimateDimIds = await db.findDimensionsByField('estimate', 'project_id', Number(projectId));
+  if (!estimateDimIds.length) return [];
 
-  const ids = estimates.map(e => e.id);
-  const { rows: tasks } = await db.query('estimate_tasks', {
-    select: 'id, estimate_id, code, description, amount',
-    filters: [{ key: 'estimate_id', op: 'in', value: ids }],
-    pageSize: null,
+  const estimates = await Promise.all(
+    estimateDimIds.map(async id => {
+      const fields = await db.getDimensionFields(id, [
+        'estimate_type', 'status', 'estimate_date', 'estimate_award_year', 'total_amount',
+      ]);
+      return { id, ...fields };
+    })
+  );
+  estimates.sort((a, b) => {
+    const da = a.estimate_date ? new Date(a.estimate_date) : new Date(0);
+    const db_ = b.estimate_date ? new Date(b.estimate_date) : new Date(0);
+    return da - db_;
   });
 
-  const taskMap = Object.fromEntries(estimates.map(e => [e.id, []]));
-  for (const t of tasks) taskMap[t.estimate_id]?.push(t);
-  for (const arr of Object.values(taskMap)) {
-    arr.sort((a, b) =>
-      a.code.localeCompare(b.code, undefined, { numeric: true }) ||
-      a.description.localeCompare(b.description)
-    );
-  }
-  return estimates.map(e => ({ estimate: e, tasks: taskMap[e.id] }));
+  const estimatesWithTasks = await Promise.all(
+    estimates.map(async estimate => {
+      const tasks = await loadEstimateTasks(estimate.id);
+      tasks.sort((a, b) =>
+        String(a.code ?? '').localeCompare(String(b.code ?? ''), undefined, { numeric: true }) ||
+        String(a.description ?? '').localeCompare(String(b.description ?? ''))
+      );
+      return { estimate, tasks };
+    })
+  );
+
+  return estimatesWithTasks;
 }

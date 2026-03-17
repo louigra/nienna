@@ -246,7 +246,7 @@ export function renderEventsWithComments(rows, onComment, onEditEstimate) {
     const addBtn = document.createElement('button');
     addBtn.className = 'btn btn-sm btn-outline-light';
     addBtn.innerHTML = `<i class="bi bi-chat-dots"></i> Comment`;
-    addBtn.addEventListener('click', () => onComment?.(ev.id, null));
+    addBtn.addEventListener('click', () => onComment?.(ev.id, ev.id));
     actions.appendChild(addBtn);
 
     if (ev.event_type === 'estimate.added') {
@@ -258,7 +258,8 @@ export function renderEventsWithComments(rows, onComment, onEditEstimate) {
     }
 
     const comments = Array.isArray(ev.event_comments) ? ev.event_comments.slice() : [];
-    const thread = renderCommentThread(comments, (parentId) => onComment?.(ev.id, parentId));
+    // For replies: parentDimensionId = the comment being replied to; rootEventId = the feed item
+    const thread = renderCommentThread(comments, (commentId) => onComment?.(commentId, ev.id));
 
     card.appendChild(header);
     card.appendChild(body);
@@ -290,7 +291,7 @@ function renderCommentThread(rows, onReply) {
   for (const r of rows) { byId.set(r.id, r); kids.set(r.id, []); }
   const roots = [];
   for (const r of rows) {
-    const pid = r.parent_comment_id;
+    const pid = r.parent_dimension_id;
     if (pid && byId.has(pid)) kids.get(pid).push(r);
     else roots.push(r);
   }

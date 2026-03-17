@@ -2,7 +2,6 @@
 // Project header: load, display, and editing of project metadata.
 
 import { db } from '../db/index.js';
-import { updateRow, deleteRow } from '../configurator/modules/db.js';
 import { getOfficialBudget } from './demo-data.js';
 
 const projectId = new URLSearchParams(location.search).get('project_id');
@@ -18,13 +17,22 @@ const formatCurrency = amt =>
 
 export async function loadProjectHeader() {
   msg.textContent = 'Loading project…';
-  const { rows: [data] } = await db.query('projects_live', {
-    select: 'id, project_title, agency, cip, category, element, project_acep, psr_key, planning_number_prefix, planning_number_suffix, project_id, pse_number',
-    filters: [{ key: 'id', op: 'eq', value: projectId }],
+
+  const { rows: [dim] } = await db.query('dimensions', {
+    select: 'id',
+    filters: [
+      { key: 'id', op: 'eq', value: projectId },
+      { key: 'dimension_type', op: 'eq', value: 'project' },
+    ],
     pageSize: 1,
   });
+  if (!dim) { msg.textContent = 'Project not found.'; return; }
 
-  if (!data) { msg.textContent = 'Project not found.'; return; }
+  const fields = await db.getDimensionFields(projectId, [
+    'project_title', 'agency', 'cip', 'category', 'element', 'project_acep',
+    'psr_key', 'planning_number_prefix', 'planning_number_suffix', 'project_id', 'pse_number',
+  ]);
+  const data = { id: Number(projectId), ...fields };
 
   titleEl.textContent = data.project_title || '—';
   psrEl.textContent = data.psr_key || '—';
@@ -47,14 +55,23 @@ export async function loadProjectHeader() {
     acepBadge.style.display = '';
   }
 
-  const { rows: [latestEst] } = await db.query('estimates', {
-    select: 'total_amount',
-    filters: [{ key: 'project_id', op: 'eq', value: projectId }],
-    order: { col: 'estimate_date', dir: 'desc' },
-    pageSize: 1,
-  });
+  // Find the most recent estimate dimension for this project.
+  // We fetch all estimates for the project, pick the one with the latest estimate_date.
+  const estimateDimIds = await db.findDimensionsByField('estimate', 'project_id', Number(projectId));
+  let latestEstTotal = null;
+  if (estimateDimIds.length) {
+    const estimateFieldRows = await Promise.all(
+      estimateDimIds.map(id => db.getDimensionFields(id, ['estimate_date', 'total_amount']))
+    );
+    estimateFieldRows.sort((a, b) => {
+      const da = a.estimate_date ? new Date(a.estimate_date) : new Date(0);
+      const db_ = b.estimate_date ? new Date(b.estimate_date) : new Date(0);
+      return db_ - da;
+    });
+    latestEstTotal = estimateFieldRows[0]?.total_amount ?? null;
+  }
   document.getElementById('proj-header-est-total').textContent =
-    latestEst ? formatCurrency(latestEst.total_amount) : '—';
+    latestEstTotal != null ? formatCurrency(latestEstTotal) : '—';
 
   const officialBudget = getOfficialBudget(projectId);
   document.getElementById('proj-header-official-budget').textContent =
@@ -71,8 +88,8 @@ export async function loadProjectHeader() {
   }).join('');
 
   const varianceEl = document.getElementById('proj-header-variance');
-  if (latestEst) {
-    const diff = latestEst.total_amount - officialBudget.total;
+  if (latestEstTotal != null) {
+    const diff = latestEstTotal - officialBudget.total;
     const sign = diff >= 0 ? '+' : '−';
     const abs  = formatCurrency(Math.abs(diff));
     varianceEl.textContent = `${sign} ${abs}`;
@@ -136,7 +153,7 @@ export function initProjectHeaderListeners() {
         project_acep:            strOrNull($('proj-acep').value),
       };
 
-      await updateRow('projects_live', 'id', projectId, updates);
+      await db.setDimensionFields(projectId, 'project', updates);
 
       // Update header from submitted values — don't depend on the DB response row
       titleEl.textContent = updates.project_title || '—';
@@ -170,7 +187,7 @@ export function initProjectHeaderListeners() {
 
   document.getElementById('delete-btn')?.addEventListener('click', async () => {
     try {
-      await deleteRow('projects_live', 'id', projectId);
+      await db.delete('dimensions', 'id', projectId);
       bootstrap.Modal.getInstance(document.getElementById('projectModal'))?.hide();
       location.replace('./managerDash.html');
     } catch (err) {

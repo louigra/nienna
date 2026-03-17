@@ -282,32 +282,50 @@ export async function renderBudgetVsEstimate(containerEl, { cip, agency, categor
     </div>`;
 
   try {
-    // Build DB filters — CIP is always required; apply optional ACEP filters
-    const filters = [{ key: 'cip', op: 'eq', value: Number(cip) }];
-    if (agency)   filters.push({ key: 'agency',   op: 'eq', value: agency });
-    if (category) filters.push({ key: 'category', op: 'eq', value: Number(category) });
-    if (element)  filters.push({ key: 'element',  op: 'eq', value: Number(element) });
-
-    const { rows: projects } = await db.query('projects_live', {
-      select: 'id, project_title, category, element, agency',
-      filters,
+    // Load all project dimensions, then filter by ACEP fields in JS
+    const { rows: projDimRows } = await db.query('dimensions', {
+      select: 'id',
+      filters: [{ key: 'dimension_type', op: 'eq', value: 'project' }],
       pageSize: null,
     });
 
-    // Batch-fetch estimates, latest per project
+    let projects = await Promise.all(
+      projDimRows.map(async ({ id }) => {
+        const fields = await db.getDimensionFields(id, ['project_title', 'agency', 'cip', 'category', 'element']);
+        return { id, ...fields };
+      })
+    );
+
+    // Apply ACEP filters in JS (cip required, others optional)
+    projects = projects.filter(p => String(p.cip ?? '') === String(cip));
+    if (agency)   projects = projects.filter(p => String(p.agency   ?? '') === String(agency));
+    if (category) projects = projects.filter(p => String(p.category ?? '') === String(category));
+    if (element)  projects = projects.filter(p => String(p.element  ?? '') === String(element));
+
+    // Load all estimate dimensions, pick latest per project
     const latestEstByProject = {};
     if (projects.length) {
-      const projectIds = projects.map(p => p.id);
-      const { rows: estimates } = await db.query('estimates', {
-        select: 'id, project_id, total_amount, estimate_type, status, estimate_date',
-        filters: [{ key: 'project_id', op: 'in', value: projectIds }],
-        order: { col: 'estimate_date', dir: 'desc' },
+      const projectIdSet = new Set(projects.map(p => p.id));
+      const { rows: estDimRows } = await db.query('dimensions', {
+        select: 'id',
+        filters: [{ key: 'dimension_type', op: 'eq', value: 'estimate' }],
         pageSize: null,
       });
-      for (const est of estimates) {
-        if (!latestEstByProject[est.project_id]) {
-          latestEstByProject[est.project_id] = est;
-        }
+      const allEstimates = await Promise.all(
+        estDimRows.map(async ({ id }) => {
+          const fields = await db.getDimensionFields(id, ['project_id', 'total_amount', 'estimate_type', 'status', 'estimate_date']);
+          return { id, ...fields };
+        })
+      );
+      allEstimates.sort((a, b) => {
+        const da = a.estimate_date ? new Date(a.estimate_date) : new Date(0);
+        const db_ = b.estimate_date ? new Date(b.estimate_date) : new Date(0);
+        return db_ - da;
+      });
+      for (const est of allEstimates) {
+        const pid = est.project_id;
+        if (pid == null || !projectIdSet.has(pid)) continue;
+        if (!latestEstByProject[pid]) latestEstByProject[pid] = est;
       }
     }
 
